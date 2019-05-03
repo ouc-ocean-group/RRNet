@@ -5,7 +5,7 @@ from datetime import datetime
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.utils as vutils
-from .timer import Timer
+from timer import Timer
 
 
 class Logger(object):
@@ -37,7 +37,7 @@ class Logger(object):
         :param n_iter: current training step.
         :return: None
         """
-        log_str = "{} Iter. {}/{}\n=> ".format(self.timer.stamp(n_iter), n_iter, self.total_iter_num)
+        log_str = "{} Iter. {}/{} | ".format(self.timer.stamp(n_iter), n_iter, self.total_iter_num)
         for k, v in data['scalar'].items():
             log_str += "{}: {:.4} ".format(k, float(v))
             self.add_scalar(float(v), tag=k, n_iter=n_iter)
@@ -72,8 +72,22 @@ class Logger(object):
             *tmp_path[:-1], tmp_path[-1] + '-{}.zip'.format(datetime.now().isoformat(timespec='seconds')))
         zip_archive = zipfile.ZipFile(out_file_name, "w", zipfile.ZIP_DEFLATED)
         for p, d, fs in os.walk(dir_path):
-            fpath = p.replace(dir, '')
+            fpath = p.replace(dir_path, '')
             for f in fs:
                 zip_archive.write(os.path.join(p, f),
                           os.path.join(fpath, f))
         zip_archive.close()
+
+
+if __name__ == '__main__':
+    import torch
+    iter_num = 1000
+    logger = Logger('./log', iter_num=iter_num, use_tensorboard=True)
+
+    demo_img = (torch.randn(1, 3, 200, 200), torch.randn(1, 3, 200, 200))
+
+    for i in range(iter_num):
+        loss = torch.randn(1)
+        log_data = {'scalar': {'train/loss': loss, 'train/lr': 0.01},
+                    'imgs': {'train/out': demo_img}}
+        logger.log(log_data, n_iter=i)

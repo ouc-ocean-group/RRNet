@@ -24,4 +24,5 @@ Function
 - <font color='blue' >\_\_getitem\_\_() </font>
   - **Params**: 
     - <font color='green' >item</font> index of item 
-  - **Return**: Tuple(image[PIL image],annotation[list])
+  - **Return**: Tuple(image[PIL image],annotation[list]) P.S. annotation is list like
+    [[1,1,1,1,1],[1,1,1,1,1]]

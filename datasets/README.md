@@ -25,4 +25,4 @@ Function
   - **Params**: 
     - <font color='green' >item</font> index of item 
   - **Return**: Tuple(image[PIL image],annotation[list]) P.S. annotation is list like
-    [[1,1,1,1,1],[1,1,1,1,1]]
+    \[[1,1,1,1,1],[1,1,1,1,1]]

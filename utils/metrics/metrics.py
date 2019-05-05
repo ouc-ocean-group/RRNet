@@ -2,7 +2,6 @@ import numpy as np
 import torch
 
 
-
 def ap_per_class(tp, conf, pred_cls, target_cls):
     '''Compute the average precision
     Source: https://github.com/rafaelpadilla/Object-Detection-Metrics.
@@ -17,6 +16,12 @@ def ap_per_class(tp, conf, pred_cls, target_cls):
     '''
 
     # Sort by objectness
+
+    assert isinstance(tp, list)
+    assert isinstance(conf, list)
+    assert isinstance(pred_cls, list)
+    assert isinstance(target_cls, list)
+
     i = np.argsort(-conf)
     tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
 
@@ -27,8 +32,8 @@ def ap_per_class(tp, conf, pred_cls, target_cls):
     ap, p, r = [], [], []
     for c in unique_classes:
         i = pred_cls == c
-        n_gt = (target_cls == c).sum() # Number of ground truth objects
-        n_p = i.sum() # Number of predicted objects
+        n_gt = (target_cls == c).sum()  # Number of ground truth objects
+        n_p = i.sum()  # Number of predicted objects
 
         if n_p == 0 and n_gt == 0:
             continue
@@ -70,6 +75,9 @@ def compute_ap(recall, precision):
     '''
 
     # first append sentinel values at the end
+
+    assert isinstance(recall, list)
+    assert isinstance(precision, list)
     mrec = np.concatenate(([0.], recall, [1.]))
     mpre = np.concatenate(([0.], precision, [1.]))
 
@@ -88,38 +96,26 @@ def compute_ap(recall, precision):
 
 def bbox_iou(box1, box2, x1y1x2y2=True):
     # Returns the IoU of box1 to box2. box1 is 4, box2 is nx4
-    # box2 = box2.t()
-
     # Get the coordinates of bounding boxes
+
+    assert torch.is_tensor(box1), torch.is_tensor(box2)
+
     if x1y1x2y2:
         # x1, y1, x2, y2 = box1
-        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:,0], box1[:,1], box1[:,2], box1[:,3]
-        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:,0], box2[:,1], box2[:,2], box2[:,3]
+        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
+        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
     else:
         # x, y, w, h = box1
-        b1_x1, b1_x2 = box1[:,0] - box1[:,2] / 2, box1[:,0] + box1[:,2] / 2
-        b1_y1, b1_y2 = box1[:,1] - box1[:,3] / 2, box1[:,1] + box1[:,3] / 2
-        b2_x1, b2_x2 = box2[:,0] - box2[:,2] / 2, box2[:,0] + box2[:,2] / 2
-        b2_y1, b2_y2 = box2[:,1] - box2[:,3] / 2, box2[:,1] + box2[:,3] / 2
+        b1_x1, b1_x2 = box1[:, 0] - box1[:, 2] / 2, box1[:, 0] + box1[:, 2] / 2
+        b1_y1, b1_y2 = box1[:, 1] - box1[:, 3] / 2, box1[:, 1] + box1[:, 3] / 2
+        b2_x1, b2_x2 = box2[:, 0] - box2[:, 2] / 2, box2[:, 0] + box2[:, 2] / 2
+        b2_y1, b2_y2 = box2[:, 1] - box2[:, 3] / 2, box2[:, 1] + box2[:, 3] / 2
 
     # Intersection area
-    print(torch.min(b1_x2, b2_x2))
-    print(b1_x2, b2_x2)
     inter_area = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
                  (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
-    print(inter_area)
     # Union Area
     union_area = ((b1_x2 - b1_x1) * (b1_y2 - b1_y1) + 1e-16) + \
                  (b2_x2 - b2_x1) * (b2_y2 - b2_y1) - inter_area
-    print(union_area)
 
     return inter_area.float() / union_area.float()  # iou
-
-
-
-
-
-
-
-
-

@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from models.py_utils.kp import kp
-from models.py_utils.utils import convolution, residual
+from .kp import KP
+from .utils import convolution, residual
 
 def make_hg_layer(kernel, dim0, dim1, mod, layer=convolution, **kwargs):
     layers  = [layer(kernel, dim0, dim1, stride=2)]
@@ -20,7 +20,7 @@ class HourglassNet(nn.Module):
         self.dims = [256, 256, 384, 384, 384, 512]
         self.modules = [2, 2, 2, 2, 2, 4]
 
-        self.kp = kp(self.n, 1, self.dims, self.modules,
+        self.kp = KP(self.n, 1, self.dims, self.modules,
                      make_pool_layer=make_pool_layer,
                      make_hg_layer=make_hg_layer,
                      kp_layer=residual, cnv_dim=256)

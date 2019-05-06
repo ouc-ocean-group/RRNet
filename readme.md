@@ -2,6 +2,11 @@
 
 This repo is created for ICCV Drones Detection 2019.
 
+## Environment
+
+- PyTorch 1.1.0
+- python3+
+
 ## Repo Structure
 - `backbones` for backbone networks.
 - `modules` for detection modules.

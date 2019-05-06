@@ -15,7 +15,7 @@ class HorizontalFlip(object):
         if random.random() > self.p:
             return data
         else:
-            w = data[0].size(1)
+            w = data[0].size(2)
             return F.flip_img(data[0]), F.flip_annos(data[1], w)
 
 
@@ -36,22 +36,22 @@ class Normalize(object):
 
 class RandomCrop(object):
     def __init__(self, size):
-        self.w, self.h = size
+        self.h, self.w = size
 
     def __call__(self, data):
         assert isinstance(data[0], torch.Tensor)
         assert isinstance(data[1], torch.Tensor)
 
-        w, h = data[0].size()[-2:]
+        h, w = data[0].size()[-2:]
         if (self.w, self.h) == (w, h):
             return data
 
         assert self.w < w and self.h < h
 
-        sw, sh = random.random() * (w - self.w), random.random() * (h - self.h)
-        crop_coordinate = int(sw), int(sh), int(sw) + self.w, int(sh) + self.h
+        rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
+        crop_coordinate = int(ry), int(rx), int(ry) + self.h, int(rx) + self.w
 
-        return F.crop_tensor(data[0], crop_coordinate), F.crop_annos(data[1], crop_coordinate)
+        return F.crop_tensor(data[0], crop_coordinate), F.crop_annos(data[1], crop_coordinate, self.h, self.w)
 
 
 class ColorJitter(object):
@@ -65,3 +65,4 @@ class ColorJitter(object):
                isinstance(data[0], PIL.PngImagePlugin.PngImageFile) or \
                isinstance(data[0], PIL.JpegImagePlugin.JpegImageFile)
         return F.color_jitter(data[0], self.brightness, self.contrast, self.saturation), data[1]
+

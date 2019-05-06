@@ -1,17 +1,17 @@
 import torch
-from PIL import Image
 import random
 import PIL.ImageEnhance as ImageEnhance
 import torchvision.transforms.functional as torchtransform
+from utils.metrics.metrics import overlap
 
 
 def flip_img(data):
     """
-    Flip PIL Image.
-    :param data: PIL Image.
+    Flip Image Tensor.
+    :param data: Image tensor.
     :return: Flipped Image.
     """
-    return data.transpose(Image.FLIP_LEFT_RIGHT)
+    return data.flip(dims=(2,))
 
 
 def flip_annos(data, w):
@@ -20,7 +20,7 @@ def flip_annos(data, w):
     :param data: annotation tensor.
     :return: Flipped annotations.
     """
-    data[:, 0] = w - data[:, 0] - data[:, 2]
+    data[:, 1] = w - data[:, 1] - data[:, 3]
     return data
 
 
@@ -40,10 +40,14 @@ def annos_to_tensor(data):
     :return: annotations tensor.
     """
     annos = []
-    for d in data:
-        split_d = [int(x) for x in d.strip().split(',')]
-        annos.append(split_d)
+    if isinstance(data, list):
+        for d in data:
+            split_d = [int(x) for x in d.strip().split(',')]
+            annos.append(split_d)
+    else:
+        annos = data
     annos_tensor = torch.tensor(annos)
+    annos_tensor[:, [0, 1, 2, 3]] = annos_tensor[:, [1, 0, 3, 2]]
     return annos_tensor
 
 
@@ -66,26 +70,40 @@ def crop_pil(data, coordinate):
     return data.crop(coordinate)
 
 
-def crop_tensor(data, coordinate):
+def crop_tensor(data, crop_coor):
     """
     Crop the torch tensor.
     :param data: tensor.
-    :param coordinate: crop coordinate.
+    :param crop_coor: crop coordinate.
     :return: cropped tensor.
     """
-    return data[:, coordinate[0]:coordinate[1], coordinate[2]:coordinate[3]]
+    return data[:, crop_coor[0]:crop_coor[2], crop_coor[1]:crop_coor[3]]
 
 
-def crop_annos(data, coordinate):
+def crop_annos(data, crop_coor, h, w):
     """
     Crop the annotations tensor.
-    :param data: annotations tensor.
-    :param coordinate: crop coordinate.
-    :return: cropped annotations tensor.  438,249,11,15,1,2,0,1
+    :param data: annotations tensor: yxhw
+    :param crop_coor: crop coordinate: yxyx
+    :return: cropped annotations tensor.
     """
     # Here we need to use iou to get the valid bounding box in cropped area.
-    # miou = MIOU(data, coordinate)
-    return cropped_annotations
+    crop_coor_tensor = torch.tensor(crop_coor).unsqueeze(0).repeat(data.size(0), 1)
+    data[:, 2:4] = data[:, :2] + data[:, 2:4]
+    olap = overlap(data[:, :4], crop_coor_tensor)
+    keep_flag = olap > 0.5
+    keep_data = data[keep_flag, :]
+    if keep_data.size(0) == 0:
+        return keep_data
+    keep_data[:, :4] -= crop_coor_tensor[keep_flag, :2].repeat(1, 2)
+    keep_data[keep_data[:, 0] < 0, 0] = 0
+    keep_data[keep_data[:, 1] < 0, 1] = 0
+    keep_data[keep_data[:, 2] > w, 2] = w
+    keep_data[keep_data[:, 3] > h, 3] = h
+
+    keep_data[:, 2] = keep_data[:, 2] - keep_data[:, 0]
+    keep_data[:, 3] = keep_data[:, 3] - keep_data[:, 1]
+    return keep_data
 
 
 def normalize(data, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):

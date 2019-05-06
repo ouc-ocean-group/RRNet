@@ -1,5 +1,6 @@
 import cv2
 import matplotlib.cm
+import torch
 
 CLASS_NAMES = ("ign", "ped", "peo", "byc", "car", "van", "trk", "tcy", "atc", "bus", "mtr", "oth")
 
@@ -15,7 +16,8 @@ def visualize(img, annos, classnames=CLASS_NAMES):
     font = cv2.FONT_HERSHEY_DUPLEX
     colors = load_colors()
     for anno in annos:
-        anno = anno.strip().split(',')
+        if not isinstance(anno, torch.Tensor):
+            anno = anno.strip().split(',')
         x, y, w, h, score, cls, trc, occ = \
             int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), anno[4], anno[5], anno[6], anno[7]
         cv2.rectangle(img, (x, y), (x + w, y + h), colors[int(cls)], 1)

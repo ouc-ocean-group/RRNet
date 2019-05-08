@@ -11,7 +11,6 @@ import numpy as np
 
 
 def soft_nms(dets, sigma=0.5, Nt=0.3, threshold=0.001, method=1):
-
     keep = cpu_soft_nms(np.ascontiguousarray(dets, dtype=np.float32),
                         np.float32(sigma), np.float32(Nt),
                         np.float32(threshold),

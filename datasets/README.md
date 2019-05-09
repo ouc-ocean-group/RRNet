@@ -12,7 +12,7 @@
 
 ### dataset.py
 
-ClassName: ICCVDataSet()
+ClassName: DronesDET()
 
 
 Function  

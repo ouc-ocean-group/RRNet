@@ -1,12 +1,12 @@
 import os
 import pandas as pd
 from PIL import Image
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import re
 import numpy as np
 
 
-class ICCVDataSet(Dataset):
+class DronesDET(Dataset):
     def __init__(self, root_dir, transform=None):
         '''
         :param root_dir: root of annotations and image dirs

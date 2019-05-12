@@ -22,8 +22,8 @@ ClassName: Config (static class)
 |:-----|:----|
 |pretrained|if use pretrained weights|
 |backbone|name for backbone like `resnet50`|
-|fpn|name for backbone like `demofpn`|
-|cls_detector|name for class detector like `demodetector`|
-|reg_detector|name for box reg detector like `demodetector`|
+|fpn|name for backbone like `fpn`|
+|cls_detector|name for class detector like `retinanet_detector`|
+|loc_detector|name for location detector like `retinanet_detector`|
 |num_anchors|number of anchors|
 |num_classes|number of classes|

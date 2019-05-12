@@ -1,7 +1,7 @@
 import torch
 from backbones.resnet import resnet50,resnet101
-from fpns.demofpn import DemoFPN
-from detectors.demo_detector import DemoDetector
+from modules.fpn import FPN
+from detectors.retinanet_detector import RetinaNetDetector
 
 
 
@@ -14,13 +14,13 @@ def get_backbone(bb_name,pretrained=False):
         return resnet50(pretrained=pretrained)
 
 def get_fpn(fp_name):
-    if fp_name=='demofpn':
-        return DemoFPN()
+    if fp_name=='fpn':
+        return FPN()
     else:
-        return DemoFPN()
+        return FPN()
 
 def get_detector(det_name,planes):
-    if det_name=='demodetector':
-        return DemoDetector(planes)
+    if det_name=='retinanet_detector':
+        return RetinaNetDetector(planes)
     else:
-        return DemoDetector(planes)
+        return RetinaNetDetector(planes)

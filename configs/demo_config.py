@@ -21,8 +21,8 @@ class Config:
     class Model:
         pretrained = True
         backbone = 'resnet50'
-        fpn = 'demofpn'
-        cls_detector = 'demodetector'
-        reg_detector = 'demodetector'
+        fpn = 'fpn'
+        cls_detector = 'retinanet_detector'
+        loc_detector = 'retinanet_detector'
         num_anchors = 9
         num_classes = 20

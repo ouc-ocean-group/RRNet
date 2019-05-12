@@ -2,9 +2,9 @@ import torch
 import torchvision
 import torch.nn as nn
 
-class DemoDetector(nn.Module):
+class RetinaNetDetector(nn.Module):
     def __init__(self,planes):
-        super(DemoDetector, self).__init__()
+        super(RetinaNetDetector, self).__init__()
         layers = []
         for _ in range(4):
             layers.append(nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1))

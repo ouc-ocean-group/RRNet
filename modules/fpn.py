@@ -3,9 +3,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class DemoFPN(nn.Module):
+class FPN(nn.Module):
     def __init__(self):
-        super(DemoFPN, self).__init__()
+        super(FPN, self).__init__()
         self.conv6 = nn.Conv2d(2048, 256, kernel_size=3, stride=2, padding=1)
         self.conv7 = nn.Conv2d( 256, 256, kernel_size=3, stride=2, padding=1)
 
@@ -18,7 +18,7 @@ class DemoFPN(nn.Module):
         self.toplayer1 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
         self.toplayer2 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
 
-    def _upsample_add(self, x, y):
+    def upsample_add(self, x, y):
         '''Upsample and add two feature maps.
         Args:
           x: (Variable) top feature map to be upsampled.
@@ -43,9 +43,9 @@ class DemoFPN(nn.Module):
         p7 = self.conv7(F.relu(p6))
         # Top-down
         p5 = self.latlayer1(c5)
-        p4 = self._upsample_add(p5, self.latlayer2(c4))
+        p4 = self.upsample_add(p5, self.latlayer2(c4))
         p4 = self.toplayer1(p4)
-        p3 = self._upsample_add(p4, self.latlayer3(c3))
+        p3 = self.upsample_add(p4, self.latlayer3(c3))
         p3 = self.toplayer2(p3)
         return p3, p4, p5, p6, p7
 

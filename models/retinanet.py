@@ -2,15 +2,15 @@ import torch
 import torch.nn as nn
 from utils.model_tools import get_backbone,get_fpn,get_detector
 
-class Drones_net(nn.Module):
+class RetinaNet(nn.Module):
     def __init__(self,cfg):
-        super(Drones_net,self).__init__()
+        super(RetinaNet,self).__init__()
         self.num_anchors=cfg.num_anchors
         self.num_classes=cfg.num_classes
         self.backbone = get_backbone(cfg.backbone,cfg.pretrained)
         self.fpn = get_fpn(cfg.fpn)
         self.cls= get_detector(cfg.cls_detector,self.num_anchors*self.num_classes)
-        self.loc= get_detector(cfg.cls_detector,self.num_anchors*4)
+        self.loc= get_detector(cfg.loc_detector,self.num_anchors*4)
 
 
     def forward(self, input):
@@ -33,4 +33,4 @@ class Drones_net(nn.Module):
 
 
 def build_net(cfg):
-    return Drones_net(cfg)
+    return RetinaNet(cfg)

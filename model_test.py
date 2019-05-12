@@ -1,5 +1,5 @@
 import torch
-from models.drones_net import build_net
+from models.retinanet import build_net
 from configs.demo_config import Config
 
 

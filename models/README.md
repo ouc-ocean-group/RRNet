@@ -6,17 +6,17 @@
 
 |filename|introduction|
 |:----|:-----:|
-|drones_net.py|the main model demo for ICCV|
+|retinanet.py|the retinanet for ICCV|
 
 ## Detail
 
-### drones_net.py
+### retinanet.py
 
-#### ClassName: Drones_net()
+#### ClassName: RetinaNet()
 
 ##### Introduction
 
-This is main retinaNet demo, and it has 5 parts
+This is main retinaNet, and it has 4 parts
 - backbone
 - fpn
 - cls_detector

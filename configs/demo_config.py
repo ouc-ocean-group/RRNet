@@ -17,3 +17,12 @@ class Config:
         batch_size = 2
         flip = True
         model_path = './log/model.pth'
+
+    class Model:
+        pretrained = True
+        backbone = 'resnet50'
+        fpn = 'demofpn'
+        cls_detector = 'demodetector'
+        reg_detector = 'demodetector'
+        num_anchors = 9
+        num_classes = 20

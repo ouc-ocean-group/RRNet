@@ -25,4 +25,4 @@ class Config:
         cls_detector = 'retinanet_detector'
         loc_detector = 'retinanet_detector'
         num_anchors = 9
-        num_classes = 20
+        num_classes = 12

@@ -2,6 +2,7 @@ import random
 import torch
 import PIL
 from . import functional as F
+from torchvision.transforms import Compose
 
 
 # All the input data in these transforms is a tuple consists of the image and the annotations.

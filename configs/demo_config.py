@@ -17,3 +17,12 @@ class Config:
         batch_size = 2
         flip = True
         model_path = './log/model.pth'
+
+    class Model:
+        pretrained = True
+        backbone = 'resnet50'
+        fpn = 'fpn'
+        cls_detector = 'retinanet_detector'
+        loc_detector = 'retinanet_detector'
+        num_anchors = 9
+        num_classes = 20

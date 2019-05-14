@@ -1,6 +1,6 @@
 # ICCVLoss
 
-2019.05.13
+2019.05.14
 
 ## Files introduction
 
@@ -39,6 +39,8 @@ $FL= - \alpha_{t} * \left( 1-P_{t} \right)^{\gamma}*CE(P_{t}) $
 #### FunctionName: focal_loss {#focal_loss}
 
 see [FocalLoss](#focalloss)
+
+and it can remove target items where label==-1, use `softmax` instead of `sigmoid`
 
 #####　Params
 

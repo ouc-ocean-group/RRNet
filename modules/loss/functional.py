@@ -13,29 +13,25 @@ def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12):
     :param num_classes: classes
     :return: tensor focal loss,not mean
     '''
+    # reomve target where label==-1
+    pos = targets > -1
+    mask = pos.unsqueeze(2).expand_as(inputs)
     # make targets inputs,and alpha in same format [N*H*W*anchors,classes]
-    pos=targets>=0
-    #num_pos = pos.data.long().sum()
-    tar = one_hot(targets.data.cpu(), num_classes)
-    inp = inputs.view(-1, num_classes).data.cuda()
-    tar = Variable(tar).view(-1,num_classes).data.cuda()
-    tar2= targets.view(-1).data.cuda()
-    anchors_num=len(tar)
+    tar = one_hot(targets[pos].data.cpu(), num_classes)
+    inp = inputs[mask].view(-1, num_classes).data.cuda()
+    tar = Variable(tar).data.cuda()
+    tar2 = targets[pos]
     # calc Pt
-    inp2 = inp.sigmoid()
+    inp2 = inp.softmax(dim=1)
     pt = torch.where(tar.eq(1), inp2, (1 - inp2))
     #  part2=(1-Pt)^gamma ,   part3=CE  , FL=alpha*part2*part3
-    part2 = torch.pow((1-pt),gamma)
+    part2 = torch.pow((1 - pt), gamma)
     part3 = nn.CrossEntropyLoss(reduction='mean')
-    print(inp2)
-    print(tar2)
-    part3= part3(inp,tar2)
-    print(part3)
-    focal_loss=part2*part3
-    focal_loss=torch.where(tar.eq(1),(alpha*focal_loss),((1-alpha)*focal_loss))
-    loss=focal_loss.sum()
+    part3 = part3(inp, tar2)
+    focal_loss = part2 * part3
+    focal_loss = torch.where(tar.eq(1), (alpha * focal_loss), ((1 - alpha) * focal_loss))
+    loss = focal_loss.sum()
     return loss
-
 
 
 def one_hot(inputs, num_classes=12):

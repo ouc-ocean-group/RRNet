@@ -42,10 +42,9 @@ def load_colors(num=12):
 
 
 if __name__ == '__main__':
-    dev_img = cv2.imread('../../data/demo/images/0000364_01765_d_0000782.jpg')
-    with open('../../data/demo/annotations/0000364_01765_d_0000782.txt', 'r') as reader:
+    dev_img = cv2.imread('../../data/test/images/9999936_00000_d_0000070.jpg')
+    with open('../../../40000/9999936_00000_d_0000070.txt', 'r') as reader:
         dev_annos = reader.readlines()
     marked_img = visualize(dev_img, dev_annos)
-    cv2.imshow('demo', marked_img)
-    cv2.imwrite('vis_demo.jpg', marked_img)
+    cv2.imwrite('../../../vis_demo.jpg', marked_img)
     cv2.waitKey(0)

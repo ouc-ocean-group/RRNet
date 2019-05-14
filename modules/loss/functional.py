@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 
-def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12):
+def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12,ignore=-1):
     '''
     cal focal loss for retinanet
     :param inputs: [N,H*W*anchors,classes]
@@ -14,7 +14,7 @@ def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12):
     :return: tensor focal loss,not mean
     '''
     # reomve target where label==-1
-    pos = targets > -1
+    pos = targets !=ignore
     mask = pos.unsqueeze(2).expand_as(inputs)
     # make targets inputs,and alpha in same format [N*H*W*anchors,classes]
     tar = one_hot(targets[pos].data.cpu(), num_classes)

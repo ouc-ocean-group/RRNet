@@ -31,7 +31,7 @@ def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12, ignore=-1
     part3 = part3(inp, tar2)
     loss = part2 * part3
     loss = torch.where(tar.eq(1), (alpha * loss), ((1 - alpha) * loss))
-    loss = loss.mean()
+    loss = loss.sum()
     return loss
 
 

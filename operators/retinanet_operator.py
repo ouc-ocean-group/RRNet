@@ -97,12 +97,12 @@ class RetinaNetOperator(BaseOperator):
                 reg_preds.append(reg_pred)
                 reg_targets.append(reg_target)
 
-        cls_targets = torch.cat(cls_targets)
-        cls_loss = self.focal_loss(outs[1], cls_targets)
-
         reg_preds = torch.cat(reg_preds)
         reg_targets = torch.cat(reg_targets)
         reg_loss = F.smooth_l1_loss(reg_preds, reg_targets)
+
+        cls_targets = torch.cat(cls_targets)
+        cls_loss = self.focal_loss(outs[1], cls_targets) / reg_targets.size(0)
         return cls_loss, reg_loss
 
     def training_process(self):

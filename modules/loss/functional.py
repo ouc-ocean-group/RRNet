@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 
 
-def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12,ignore=-1):
+def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12, ignore=-1):
     '''
     cal focal loss for retinanet
     :param inputs: [N,H*W*anchors,classes]
@@ -11,10 +11,11 @@ def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12,ignore=-1)
     :param alpha: float32
     :param gamma: float32
     :param num_classes: classes
+    :param ignore: ignore index
     :return: tensor focal loss,not mean
     '''
     # reomve target where label==-1
-    pos = targets !=ignore
+    pos = targets != ignore
     mask = pos.unsqueeze(2).expand_as(inputs)
     # make targets inputs,and alpha in same format [N*H*W*anchors,classes]
     tar = one_hot(targets[pos].data.cpu(), num_classes)
@@ -28,9 +29,9 @@ def focal_loss(inputs, targets, alpha=0.25, gamma=2.0, num_classes=12,ignore=-1)
     part2 = torch.pow((1 - pt), gamma)
     part3 = nn.CrossEntropyLoss(reduction='mean')
     part3 = part3(inp, tar2)
-    focal_loss = part2 * part3
-    focal_loss = torch.where(tar.eq(1), (alpha * focal_loss), ((1 - alpha) * focal_loss))
-    loss = focal_loss.sum()
+    loss = part2 * part3
+    loss = torch.where(tar.eq(1), (alpha * loss), ((1 - alpha) * loss))
+    loss = loss.mean()
     return loss
 
 

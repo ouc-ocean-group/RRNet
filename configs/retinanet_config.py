@@ -3,10 +3,10 @@ from datasets.transforms import *
 
 class Config:
     dataset = 'drones_det'
-    data_root = '/root/DronesDET'
+    data_root = './DronesDET'
     log_prefix = 'RetinaNet'
     use_tensorboard = True
-    num_classes = 11
+    num_classes = 12
 
     class Train:
         pretrained = False

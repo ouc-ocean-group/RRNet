@@ -122,7 +122,9 @@ class Hourglass(nn.Module):
 
 
 class HourglassNet(nn.Module):
-    # Hourglass model from CenterNet.
+    # Hourglass model for CenterNet.
+    # Pretrained model: `hdfs://192.168.193.1:9000/data/models/geo/hourglass.pth`
+    # We can use torch.load() to load the pretrained model.
 
     def __init__(self, num_stacks=2):
         super(HourglassNet, self).__init__()

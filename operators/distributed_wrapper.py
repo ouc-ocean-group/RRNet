@@ -5,10 +5,19 @@ import torch.distributed as dist
 
 class DistributedWrapper(object):
     def __init__(self, cfg, operator_class):
+        """
+        This is a wrapper class for distributed training.
+        :param cfg: configuration.
+        :param operator_class: We use this class to construct the operator for training and evaluating.
+        """
         self.cfg = cfg
         self.operator_class = operator_class
 
     def setup_distributed_params(self):
+        """
+        Setup the world size and ngpus per node.
+        :return:
+        """
         try:
             ngpus_per_node = torch.cuda.device_count()
             self.cfg.Distributed.ngpus_per_node = ngpus_per_node
@@ -17,6 +26,13 @@ class DistributedWrapper(object):
             raise ValueError('[x] Can not get gpu numbers!')
 
     def init_operator(self, gpu, ngpus_per_node, cfg):
+        """
+        Create distributed model operator.
+        :param gpu: gpu id.
+        :param ngpus_per_node: to calculate the real rank.
+        :param cfg: configuration.
+        :return: model operator.
+        """
         cfg.Distributed.gpu_id = gpu
         print("=> Use GPU: {}".format(gpu))
 
@@ -29,11 +45,17 @@ class DistributedWrapper(object):
         return self.operator_class(cfg)
 
     def train(self):
+        """
+        Start multiprocessing training.
+        """
         self.setup_distributed_params()
         mp.spawn(self.dist_training_process, nprocs=self.cfg.distributed.ngpus_per_node,
                  args=(self.cfg.distributed.ngpus_per_node, self.cfg))
 
     def eval(self):
+        """
+        Start multiprocessing evaluating.
+        """
         self.setup_distributed_params()
         mp.spawn(self.dist_evaluation_process, nprocs=self.cfg.distributed.ngpus_per_node,
                  args=(self.cfg.distributed.ngpus_per_node, self.cfg))

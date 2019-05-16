@@ -27,7 +27,10 @@ class RetinaNetOperator(BaseOperator):
             cfg=self.cfg, model=model, optimizer=self.optimizer, lr_sch=self.lr_sch)
 
         anchor_maker = Anchors()
+        # Make the default anchors for training.
+        # During the inference phase, we should create different default anchors for images in different size.
         self.anchors = anchor_maker(cfg.Train.crop_size)
+
         self.focal_loss = FocalLoss(class_num=cfg.cls_num, ignore=-1)
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0
@@ -56,7 +59,7 @@ class RetinaNetOperator(BaseOperator):
 
             assigned_anno = anno[max_idx[pos_idx], :]
 
-            # Classification loss
+            # I. Classification loss
             pos_cls = assigned_anno[:, 5]
             cls_target = (torch.ones(anchors.size(0)) * -1).cuda()
             cls_target[pos_idx] = pos_cls
@@ -65,7 +68,7 @@ class RetinaNetOperator(BaseOperator):
             cls_target = cls_target.long()
             cls_targets.append(cls_target.unsqueeze(0))
 
-            # Regression loss
+            # II. Regression loss
 
             if pos_idx.sum() > 0:
                 anchor_widths_pi = anchors_widths[pos_idx]

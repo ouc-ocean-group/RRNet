@@ -13,6 +13,7 @@ def visualize(img, annos, classnames=CLASS_NAMES):
     :param classnames: class name text
     :return: marked image
     """
+    img = img.copy()
     font = cv2.FONT_HERSHEY_DUPLEX
     colors = load_colors()
     for anno in annos:

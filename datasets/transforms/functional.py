@@ -40,7 +40,7 @@ def annos_to_tensor(data):
     :return: annotations tensor.
     """
     annos = []
-    if isinstance(data, list):
+    if not isinstance(data[0], list):
         for d in data:
             split_d = [int(x) for x in d.strip().split(',')]
             annos.append(split_d)
@@ -85,7 +85,7 @@ def crop_annos(data, crop_coor, h, w):
     Crop the annotations tensor.
     :param data: annotations tensor: yxhw
     :param crop_coor: crop coordinate: yxyx
-    :return: cropped annotations tensor.
+    :return: cropped annotations tensor yxhw.
     """
     # Here we need to use iou to get the valid bounding box in cropped area.
     crop_coor_tensor = torch.tensor(crop_coor).unsqueeze(0).repeat(data.size(0), 1)

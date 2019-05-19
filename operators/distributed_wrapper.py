@@ -21,7 +21,7 @@ class DistributedWrapper(object):
         try:
             ngpus_per_node = torch.cuda.device_count()
             self.cfg.Distributed.ngpus_per_node = ngpus_per_node
-            self.cfg.Distributed.world_size = ngpus_per_node * self.cfg.distributed.world_size
+            self.cfg.Distributed.world_size = ngpus_per_node * self.cfg.Distributed.world_size
         except ValueError:
             raise ValueError('[x] Can not get gpu numbers!')
 
@@ -49,16 +49,16 @@ class DistributedWrapper(object):
         Start multiprocessing training.
         """
         self.setup_distributed_params()
-        mp.spawn(self.dist_training_process, nprocs=self.cfg.distributed.ngpus_per_node,
-                 args=(self.cfg.distributed.ngpus_per_node, self.cfg))
+        mp.spawn(self.dist_training_process, nprocs=self.cfg.Distributed.ngpus_per_node,
+                 args=(self.cfg.Distributed.ngpus_per_node, self.cfg))
 
     def eval(self):
         """
         Start multiprocessing evaluating.
         """
         self.setup_distributed_params()
-        mp.spawn(self.dist_evaluation_process, nprocs=self.cfg.distributed.ngpus_per_node,
-                 args=(self.cfg.distributed.ngpus_per_node, self.cfg))
+        mp.spawn(self.dist_evaluation_process, nprocs=self.cfg.Distributed.ngpus_per_node,
+                 args=(self.cfg.Distributed.ngpus_per_node, self.cfg))
 
     def dist_training_process(self, gpu, ngpus_per_node, cfg):
         operator = self.init_operator(gpu, ngpus_per_node, cfg)

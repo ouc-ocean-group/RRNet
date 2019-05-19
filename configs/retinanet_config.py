@@ -3,8 +3,9 @@ from torch.utils.data import DistributedSampler
 
 
 class Config:
+    seed = 219
     dataset = 'drones_det'
-    data_root = './DronesDET'
+    data_root = './data/DronesDET'
     log_prefix = 'RetinaNet'
     use_tensorboard = True
     # index 0 is not for the ignore region. It is the background or negative region.
@@ -12,7 +13,7 @@ class Config:
 
     class Train:
         # If use the pretrained backbone model.
-        pretrained = True
+        pretrained = False
 
         # Dataloader params.
         batch_size = 8

@@ -1,7 +1,9 @@
 import random
 import torch
 import PIL
+import numpy as np
 from . import functional as F
+from torchvision.transforms import Compose
 
 
 # All the input data in these transforms is a tuple consists of the image and the annotations.
@@ -45,13 +47,23 @@ class RandomCrop(object):
         h, w = data[0].size()[-2:]
         if (self.w, self.h) == (w, h):
             return data
-
         assert self.w < w and self.h < h
 
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
         crop_coordinate = int(ry), int(rx), int(ry) + self.h, int(rx) + self.w
-
-        return F.crop_tensor(data[0], crop_coordinate), F.crop_annos(data[1], crop_coordinate, self.h, self.w)
+        cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
+        if cropped_annos.size(0) == 0:
+            # rand_idx = random.randint(0, data[1].size(0) - 1)
+            rand_idx = 0
+            include_bbox = data[1][rand_idx, :]
+            y2, x2 = include_bbox[0] + np.random.uniform(-1, 1) * 0.3 * float(include_bbox[2]) + self.h, \
+                     include_bbox[1] + np.random.uniform(-1, 1) * 0.3 * float(include_bbox[3]) + self.w
+            offset_y, offset_x = max(y2 - h, 0), max(x2 - w, 0)
+            y2, x2 = y2 - offset_y, x2 - offset_x
+            crop_coordinate = y2 - self.h, x2 - self.w, y2, x2
+            cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
+        cropped_img = F.crop_tensor(data[0], crop_coordinate)
+        return cropped_img, cropped_annos
 
 
 class ColorJitter(object):
@@ -65,4 +77,3 @@ class ColorJitter(object):
                isinstance(data[0], PIL.PngImagePlugin.PngImageFile) or \
                isinstance(data[0], PIL.JpegImagePlugin.JpegImageFile)
         return F.color_jitter(data[0], self.brightness, self.contrast, self.saturation), data[1]
-

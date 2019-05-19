@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class CenterNetDetector(nn.Module):
     def __init__(self, planes, hm=True, num_stacks=2):
-        super(self, CenterNetDetector).__init__()
+        super( CenterNetDetector,self).__init__()
         self.hm = hm
         self.num_stacks = num_stacks
         self.detect_layer = nn.ModuleList([nn.Sequential(

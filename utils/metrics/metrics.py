@@ -18,7 +18,7 @@ def bbox_iou(a, b, x1y1x2y2=True, overlap=False):
     assert isinstance(a, torch.Tensor)
     assert isinstance(b, torch.Tensor)
 
-    a, b = a.float(), b.float()
+    a, b = a.clone().float(), b.clone().float()
     if not x1y1x2y2:
         a[:, 2] += a[:, 0]
         a[:, 3] += a[:, 1]
@@ -68,18 +68,17 @@ def get_tp(pred, target,
     sort_idx = torch.sort(pred[:, 4], descending=True)[1]
     pred = pred[sort_idx, :]
 
-    ignore_idx = target[:, 5] == 0
-
-    _, gt_overlap = bbox_iou(target[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
-
     # Remove gt box in ignore region.
+    ignore_idx = target[:, 5] == 0
+    _, gt_overlap = bbox_iou(target[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
     if ignore_idx.sum() != 0:
         ignore_overlap = gt_overlap[:, ignore_idx].max(dim=1)[0]
-        keep_idx = ignore_overlap < 0.5
+        keep_idx = (ignore_overlap < 0.5) + ignore_idx
         target = target[keep_idx, :]
 
-    iou, overlap = bbox_iou(pred[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
     # Remove prediction box in ignore region.
+    ignore_idx = target[:, 5] == 0
+    iou, overlap = bbox_iou(pred[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
     if ignore_idx.sum() != 0:
         ignore_overlap = overlap[:, ignore_idx].max(dim=1)[0]
         keep_idx = ignore_overlap < 0.5
@@ -202,7 +201,7 @@ def evaluate_once(pred, target, thresholds=torch.arange(0.5, 1.0, 0.05), cls_num
                cls_target_count, cls_in_img_count,
                thresholds, cls_num)
     ap, rc = calculate_ap_rc(cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count)
-
+    print(ap)
     return ap, rc
 
 

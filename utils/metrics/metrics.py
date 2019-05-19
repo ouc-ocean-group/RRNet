@@ -1,106 +1,32 @@
 import numpy as np
 import torch
+import pandas as pd
+import glob
+import os
+import time
 
 
-def ap_per_class(tp, conf, pred_cls, target_cls):
-    '''Compute the average precision
-    Source: https://github.com/rafaelpadilla/Object-Detection-Metrics.
-    # Arguments
-        tp:         True positives (list).
-        conf:       Objectness value from 0-1 (list).
-        pred cls:   Predicted object classes (list).
-        target_cls: True object classes (list).
-    # Returns
-        The average precision as computed in py-faster-rcnn
+def bbox_iou(a, b, x1y1x2y2=True, overlap=False):
+    """
+    Calculate IoU and overlap between bbox group a and bbox group b.
+    :param a: Tensor, m*4
+    :param b: Tensor, n*4
+    :param x1y1x2y2: if use (x1x2y1y2) format.
+    :param overlap: If True, return overlap of a in b
+    :return: IoU, m*n, (Overlap, m*n)
+    """
+    assert isinstance(a, torch.Tensor)
+    assert isinstance(b, torch.Tensor)
 
-    '''
-
-    # Sort by objectness
-
-    assert isinstance(tp, list)
-    assert isinstance(conf, list)
-    assert isinstance(pred_cls, list)
-    assert isinstance(target_cls, list)
-
-    i = np.argsort(-conf)
-    tp, conf, pred_cls = tp[i], conf[i], pred_cls[i]
-
-    # Find unique classes
-    unique_classes = np.unique(target_cls)
-
-    # Create Precision-Recall curve and compute AP for each class
-    ap, p, r = [], [], []
-    for c in unique_classes:
-        i = pred_cls == c
-        n_gt = (target_cls == c).sum()  # Number of ground truth objects
-        n_p = i.sum()  # Number of predicted objects
-
-        if n_p == 0 and n_gt == 0:
-            continue
-        elif n_p == 0 or n_gt == 0:
-            ap.append(0)
-            r.append(0)
-            p.append(0)
-        else:
-            # Accumulate FPs and TPs
-            fpc = (1 - tp[i]).cumsum()
-            tpc = (tp[i]).cumsum()
-
-            # Recall
-            recall_curve = tpc / (n_gt + 1e-16)
-            r.append(recall_curve[-1])
-
-            # Precision
-            precision_curve = tpc / (tpc + fpc)
-            p.append(precision_curve[-1])
-
-            # AP from recall-precision curve
-            ap.append(compute_ap(recall_curve, precision_curve))
-
-    # Compute F1 Score (harmonic mean of precision and recall)
-    p, r, ap = np.array(p), np.array(r), np.array(ap)
-    f1 = 2 * p * r / (p + r + 1e-16)
-
-    return p, r, ap, f1, unique_classes
-
-
-def compute_ap(recall, precision):
-    ''' Compute the average precision, given the recall and precision curves
-    Source: https://github.com/rbgirshick/py-faster-rcnn.
-    # Arguments
-        recall:       The recall curve (list).
-        precision:    The precision curve (list).
-    # Returns
-        The average precision as computed in py-faster-rcnn.
-    '''
-
-    # first append sentinel values at the end
-
-    assert isinstance(recall, list)
-    assert isinstance(precision, list)
-    mrec = np.concatenate(([0.], recall, [1.]))
-    mpre = np.concatenate(([0.], precision, [1.]))
-
-    # compute the precision envelope
-    for i in range(mpre.size - 1, 0, -1):
-        mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
-
-    # to calculate area under PR curve, look for points
-    # where X axis (recall) changes value
-    i = np.where(mrec[1:] != mrec[:-1])[0]
-
-    # and sum (\Delta recall) * prec
-    ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
-    return ap
-
-
-def bbox_iou(a, b, x1y1x2y2=True):
+    a, b = a.float(), b.float()
     if not x1y1x2y2:
         a[:, 2] += a[:, 0]
         a[:, 3] += a[:, 1]
         b[:, 2] += b[:, 0]
         b[:, 3] += b[:, 1]
-    area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
+
+    a_area = (a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1])
+    b_area = (b[:, 2] - b[:, 0]) * (b[:, 3] - b[:, 1])
 
     iw = torch.min(torch.unsqueeze(a[:, 2], dim=1), b[:, 2]) - torch.max(torch.unsqueeze(a[:, 0], 1), b[:, 0])
     ih = torch.min(torch.unsqueeze(a[:, 3], dim=1), b[:, 3]) - torch.max(torch.unsqueeze(a[:, 1], 1), b[:, 1])
@@ -108,37 +34,207 @@ def bbox_iou(a, b, x1y1x2y2=True):
     iw = torch.clamp(iw, min=0)
     ih = torch.clamp(ih, min=0)
 
-    ua = torch.unsqueeze((a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1]), dim=1) + area - iw * ih
+    ua = torch.unsqueeze((a[:, 2] - a[:, 0]) * (a[:, 3] - a[:, 1]), dim=1) + b_area - iw * ih
 
     ua = torch.clamp(ua, min=1e-8)
 
     intersection = iw * ih
 
     IoU = intersection / ua
-
-    return IoU
-
-
-def overlap(box1, box2, x1y1x2y2=True):
-    # Returns the overlap of box1 to box2
-
-    assert torch.is_tensor(box1), torch.is_tensor(box2)
-
-    if x1y1x2y2:
-        # x1, y1, x2, y2 = box1
-        b1_x1, b1_y1, b1_x2, b1_y2 = box1[:, 0], box1[:, 1], box1[:, 2], box1[:, 3]
-        b2_x1, b2_y1, b2_x2, b2_y2 = box2[:, 0], box2[:, 1], box2[:, 2], box2[:, 3]
+    if overlap:
+        return IoU, intersection / a_area.unsqueeze(1)
     else:
-        # x, y, w, h = box1
-        b1_x1, b1_x2 = box1[:, 0] - box1[:, 2] / 2, box1[:, 0] + box1[:, 2] / 2
-        b1_y1, b1_y2 = box1[:, 1] - box1[:, 3] / 2, box1[:, 1] + box1[:, 3] / 2
-        b2_x1, b2_x2 = box2[:, 0] - box2[:, 2] / 2, box2[:, 0] + box2[:, 2] / 2
-        b2_y1, b2_y2 = box2[:, 1] - box2[:, 3] / 2, box2[:, 1] + box2[:, 3] / 2
+        return IoU
 
-    # Intersection area
-    inter_area = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
-                 (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
-    # Union Area
-    union_area = ((b1_x2 - b1_x1) * (b1_y2 - b1_y1) + 1e-16)
 
-    return inter_area.float() / union_area.float()
+def get_tp(pred, target,
+           cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count,
+           thresholds=torch.arange(0.5, 1.0, 0.05), cls_num=11):
+    """
+    Get the true positive flag in the prediction.
+    :param pred: Tensor, m*6
+    :param target: Tensor, n*6
+    :param cls_tp_flags: base true positive flags of all the classes.
+    :param cls_tp_confs: base true positive confidence of all the classes.
+    :param cls_target_count: number of the gt bounding box of each class.
+    :param cls_in_img_count: if ClassC in this image, cls_in_img_count[ClassC] += 1.
+    :param thresholds: Tensor, IoU thresholds.
+    :param cls_num: number of class.
+    :return: cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count
+    """
+
+    threshold_num = thresholds.size(0)
+
+    sort_idx = torch.sort(pred[:, 4], descending=True)[1]
+    pred = pred[sort_idx, :]
+
+    iou, overlap = bbox_iou(pred[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
+
+    # Remove prediction box in ignore region.
+    ignore_idx = target[:, 5] == 0
+    if ignore_idx.sum() != 0:
+        ignore_overlap = overlap[:, ignore_idx].max(dim=1)[0]
+        keep_idx = ignore_overlap < 0.5
+        pred = pred[keep_idx, :]
+        iou = iou[keep_idx, :]
+
+    pred_cls = pred[:, 5].long()
+    target_cls = target[:, 5].long()
+
+    cls_grid = torch.meshgrid(pred_cls, target_cls)
+
+    tp = cls_grid[0] == cls_grid[1]
+
+    iou_flag = (iou.unsqueeze(2).repeat(1, 1, threshold_num) - thresholds) >= 0
+
+    tp = tp.unsqueeze(2).repeat(1, 1, threshold_num) * iou_flag
+
+    tp_iou = iou.unsqueeze(2).repeat(1, 1, threshold_num) * tp.float()
+
+    cls_flag = torch.zeros(cls_num - 1)
+
+    for cls in range(1, cls_num):
+        cls_dt_tp_iou = tp_iou[pred_cls == cls, :, :]
+        target_cls_flag = target_cls == cls
+        cls_tp_iou = cls_dt_tp_iou[:, target_cls_flag, :]
+        cls_flag[cls - 1] = 1 if target_cls_flag.sum() != 0 else 0
+        cls_target_count[cls - 1] += cls_tp_iou.size(1)
+        cls_in_img_count[cls - 1] += 1 if cls_tp_iou.size(1) != 0 else 0
+
+        if cls_tp_iou.size(0) == 0 or cls_tp_iou.size(1) == 0:
+            continue
+
+        cls_tp_flag = torch.zeros_like(cls_tp_iou)
+        for dt_i in range(cls_tp_iou.size(0)):
+            dt_iou = cls_tp_iou[dt_i, :]
+            max_iou, max_idx = dt_iou.max(dim=0)
+            threshold_idx = max_iou.nonzero()
+            if threshold_idx.size(0) != 0:
+                threshold_idx = threshold_idx.squeeze().long()
+                target_idx = max_idx[threshold_idx]
+                cls_tp_iou[:, target_idx, threshold_idx] = 0
+                cls_tp_flag[dt_i, target_idx, threshold_idx] = 1
+        cls_tp_flag = cls_tp_flag.sum(1)
+        cls_tp_conf = pred[pred_cls == cls, 4]
+        cls_tp_flags[cls - 1] = torch.cat((cls_tp_flags[cls - 1], cls_tp_flag))
+        cls_tp_confs[cls - 1] = torch.cat((cls_tp_confs[cls - 1], cls_tp_conf))
+
+    return cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count
+
+
+def calculate_ap_rc(cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count):
+    """
+    Calculate AP and max Recall.
+    :return: Tensor, AP of all the thresholds, Tensor, max Recall.
+    """
+    cls_num = cls_target_count.size(0)
+    threshold_num = cls_tp_flags[0].size(1)
+
+    total_ap = torch.zeros(cls_num)
+    total_rc = torch.zeros(threshold_num)
+    eval_cls = cls_target_count != 0
+
+    for cls in range(cls_num):
+        if eval_cls[cls] == 0:
+            continue
+        cls_tp_flag = cls_tp_flags[cls]
+        cls_tp_conf = cls_tp_confs[cls]
+
+        sort_idx = torch.sort(cls_tp_conf, descending=True)[1]
+        cls_tp_flag = cls_tp_flag[sort_idx, :]
+        cls_tp_cumsum = cls_tp_flag.cumsum(dim=0)
+
+        cls_prec = \
+            cls_tp_cumsum / \
+            torch.arange(1., cls_tp_cumsum.size(0) + 1, step=1.).unsqueeze(1).repeat(1, cls_tp_cumsum.size(1))
+        cls_rec = cls_tp_cumsum / cls_target_count[cls].clamp(min=1)
+
+        mrec = torch.cat((torch.zeros(1, cls_rec.size(1)), cls_rec, torch.ones(1, cls_rec.size(1))))
+        mpre = torch.cat((torch.zeros(1, cls_prec.size(1)), cls_prec, torch.zeros(1, cls_prec.size(1))))
+
+        for i in range(mpre.size(0) - 1, 0, -1):
+            mpre[i - 1] = torch.max(mpre[i - 1], mpre[i])
+
+        cum_idx = ((mrec[1:] - mrec[:-1]) > 0).float()
+        total_ap += \
+            torch.sum((mrec[1:, :] * cum_idx - mrec[:-1, :] * cum_idx) * mpre[1:, :] * cum_idx, dim=0) * \
+            cls_in_img_count[cls]
+        total_rc += mrec[:-1, :].max(dim=0)[0] * cls_in_img_count[cls]
+
+    ap = total_ap / cls_in_img_count.sum()
+    rc = (total_rc / cls_in_img_count.sum()).mean()
+    return ap, rc
+
+
+def evaluate_once(pred, target, thresholds=torch.arange(0.5, 1.0, 0.05), cls_num=11, max_det_num=500):
+    """
+    Evaluate AP and Recall between one prediction and one target.
+    :param pred: Tensor, m*6.
+    :param target: Tensor, n*6.
+    :param thresholds: Tensor, IoU Thresholds.
+    :param cls_num: Int, Class number.
+    :param max_det_num: Int Max number of the prediction bbox.
+    :return: AP Tensor and max recall.
+    """
+    assert isinstance(pred, torch.Tensor)
+    assert isinstance(target, torch.Tensor)
+
+    pred = pred[:max_det_num]
+    threshold_num = thresholds.size(0)
+
+    cls_target_count = torch.zeros(cls_num - 1)
+    cls_in_img_count = torch.zeros(cls_num - 1)
+
+    cls_tp_flags = [torch.zeros(0, threshold_num) for _ in range(1, cls_num)]  # Except ignore class
+    cls_tp_confs = [torch.zeros(0) for _ in range(1, cls_num)]
+
+    cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count = \
+        get_tp(pred, target,
+               cls_tp_flags, cls_tp_confs,
+               cls_target_count, cls_in_img_count,
+               thresholds, cls_num)
+    ap, rc = calculate_ap_rc(cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count)
+
+    return ap, rc
+
+
+def evaluate_results(pred_dir, target_dir, thresholds=torch.arange(0.5, 1.0, 0.05), cls_num=11, max_det_num=500):
+    """
+    Evaluate AP and Recall between many prediction files and ground truth files.
+    :param pred_dir: String, prediction dir.
+    :param target_dir: String target annotation dir.
+    :param thresholds: Tensor, IoU Thresholds.
+    :param cls_num: Int, Class number.
+    :param max_det_num: Int Max number of the prediction bbox.
+    :return: None
+    """
+    threshold_num = thresholds.size(0)
+    st = time.time()
+    pred_list = [x.split('/')[-1].split('.')[0] for x in glob.glob(os.path.join(pred_dir, '*.txt'))]
+
+    cls_target_count = torch.zeros(cls_num - 1)
+    cls_in_img_count = torch.zeros(cls_num - 1)
+
+    cls_tp_flags = [torch.zeros(0, threshold_num) for _ in range(1, cls_num)]  # Except ignore class
+    cls_tp_confs = [torch.zeros(0) for _ in range(1, cls_num)]
+
+    for name in pred_list:
+        pred = pd.read_csv(os.path.join(pred_dir, "{}.txt".format(name)), header=None, float_precision='high')
+        target = pd.read_csv(os.path.join(target_dir, "{}.txt".format(name)), header=None, float_precision='high')
+        pred = np.array(pred)
+        target = np.array(target)
+        pred = torch.from_numpy(pred).float()[:max_det_num]
+        target = torch.from_numpy(target).float()[:max_det_num]
+
+        cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count = \
+            get_tp(pred, target,
+                   cls_tp_flags, cls_tp_confs,
+                   cls_target_count, cls_in_img_count,
+                   thresholds, cls_num)
+    ap, rc = calculate_ap_rc(cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count)
+
+    print("Average Precision  (AP) @[ IoU=0.50:0.95] = {:.4}.".format(ap.mean().item()))
+    print("Average Precision  (AP) @[ IoU=0.50     ] = {:.4}.".format(ap[0].item()))
+    print("Average Precision  (AP) @[ IoU=0.75     ] = {:.4}.".format(ap[5].item()))
+    print("Average Recall     (AR) @[ IoU=0.50:0.95] = {:.4}.".format(rc.item()))
+    print("Cost Time: {}s".format(time.time() - st))

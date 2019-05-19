@@ -2,7 +2,7 @@ import torch
 import random
 import PIL.ImageEnhance as ImageEnhance
 import torchvision.transforms.functional as torchtransform
-from utils.metrics.metrics import overlap
+from utils.metrics.metrics import bbox_iou
 
 
 def flip_img(data):
@@ -90,8 +90,8 @@ def crop_annos(data, crop_coor, h, w):
     # Here we need to use iou to get the valid bounding box in cropped area.
     crop_coor_tensor = torch.tensor(crop_coor).unsqueeze(0).repeat(data.size(0), 1)
     data[:, 2:4] = data[:, :2] + data[:, 2:4]
-    olap = overlap(data[:, :4], crop_coor_tensor)
-    keep_flag = olap > 0.5
+    _, olap = bbox_iou(data[:, :4], crop_coor_tensor, overlap=True)
+    keep_flag = (olap > 0.5).squeeze()
     keep_data = data[keep_flag, :]
     if keep_data.size(0) == 0:
         return keep_data

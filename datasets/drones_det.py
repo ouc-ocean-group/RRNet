@@ -17,12 +17,10 @@ class DronesDET(Dataset):
         # get the csv
         self.images_dir = os.path.join(root_dir, split, 'images')
         self.annotations_dir = os.path.join(root_dir, split, 'annotations')
-        print('create index....')
         mdf = os.listdir(self.images_dir)
         restr = r'\w+?(?=(.jpg))'
         for index, mm in enumerate(mdf):
             mdf[index] = re.match(restr, mm).group()
-        print('index created')
         self.mdf = mdf
         self.transforms = transforms
 

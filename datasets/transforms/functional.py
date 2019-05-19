@@ -91,6 +91,7 @@ def crop_annos(data, crop_coor, h, w):
     crop_coor_tensor = torch.tensor(crop_coor).unsqueeze(0).repeat(data.size(0), 1)
     data[:, 2:4] = data[:, :2] + data[:, 2:4]
     _, olap = bbox_iou(data[:, :4], crop_coor_tensor, overlap=True)
+    print(crop_coor_tensor.size())
     keep_flag = (olap > 0.5).squeeze()
     keep_data = data[keep_flag, :]
     if keep_data.size(0) == 0:

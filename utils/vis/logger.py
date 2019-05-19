@@ -12,7 +12,7 @@ class Logger(object):
         self.tensorboard = SummaryWriter(self.log_dir) if cfg.use_tensorboard else None
         self.timer = Timer()
         self.total_iter_num = cfg.Train.iter_num
-        self.init_timer(cfg.Trainiter_num)
+        self.init_timer(cfg.Train.iter_num)
 
     def init_timer(self, iter_length):
         self.timer.start(iter_length)

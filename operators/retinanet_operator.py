@@ -31,7 +31,7 @@ class RetinaNetOperator(BaseOperator):
         # During the inference phase, we should create different default anchors for images in different size.
         self.anchors = anchor_maker(cfg.Train.crop_size)
 
-        self.focal_loss = FocalLoss(class_num=cfg.cls_num, ignore=-1)
+        self.focal_loss = FocalLoss(class_num=cfg.num_classes, ignore=-1)
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0
 

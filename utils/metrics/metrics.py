@@ -68,10 +68,18 @@ def get_tp(pred, target,
     sort_idx = torch.sort(pred[:, 4], descending=True)[1]
     pred = pred[sort_idx, :]
 
-    iou, overlap = bbox_iou(pred[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
-
-    # Remove prediction box in ignore region.
     ignore_idx = target[:, 5] == 0
+
+    _, gt_overlap = bbox_iou(target[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
+
+    # Remove gt box in ignore region.
+    if ignore_idx.sum() != 0:
+        ignore_overlap = gt_overlap[:, ignore_idx].max(dim=1)[0]
+        keep_idx = ignore_overlap < 0.5
+        target = target[keep_idx, :]
+
+    iou, overlap = bbox_iou(pred[:, :4], target[:, :4], x1y1x2y2=False, overlap=True)
+    # Remove prediction box in ignore region.
     if ignore_idx.sum() != 0:
         ignore_overlap = overlap[:, ignore_idx].max(dim=1)[0]
         keep_idx = ignore_overlap < 0.5

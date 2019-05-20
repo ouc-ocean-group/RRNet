@@ -20,7 +20,7 @@ def flip_annos(data, w):
     :param data: annotation tensor.
     :return: Flipped annotations.
     """
-    data[:, 1] = w - data[:, 1] - data[:, 3]
+    data[:, 0] = w - data[:, 0] - data[:, 2]
     return data
 
 
@@ -40,14 +40,14 @@ def annos_to_tensor(data):
     :return: annotations tensor.
     """
     annos = []
-    if not isinstance(data[0], list):
+    if isinstance(data[0], str):
         for d in data:
             split_d = [int(x) for x in d.strip().split(',')]
             annos.append(split_d)
     else:
         annos = data
-    annos_tensor = torch.tensor(annos)
-    annos_tensor[:, [0, 1, 2, 3]] = annos_tensor[:, [1, 0, 3, 2]]
+    annos_tensor = torch.tensor(annos).float()
+    # annos_tensor[:, [0, 1, 2, 3]] = annos_tensor[:, [1, 0, 3, 2]]
     return annos_tensor
 
 
@@ -77,26 +77,25 @@ def crop_tensor(data, crop_coor):
     :param crop_coor: crop coordinate.
     :return: cropped tensor.
     """
-    return data[:, crop_coor[0]:crop_coor[2], crop_coor[1]:crop_coor[3]]
+    return data[:, int(crop_coor[1]):int(crop_coor[3]), int(crop_coor[0]):int(crop_coor[2])]
 
 
 def crop_annos(data, crop_coor, h, w):
     """
     Crop the annotations tensor.
-    :param data: annotations tensor: yxhw
-    :param crop_coor: crop coordinate: yxyx
-    :return: cropped annotations tensor yxhw.
+    :param data: annotations tensor: xywh
+    :param crop_coor: crop coordinate: xywh
+    :return: cropped annotations tensor xywh.
     """
     # Here we need to use iou to get the valid bounding box in cropped area.
-    crop_coor_tensor = torch.tensor(crop_coor).unsqueeze(0).repeat(data.size(0), 1)
+    crop_coor_tensor = torch.tensor(crop_coor).float().unsqueeze(0)
     data[:, 2:4] = data[:, :2] + data[:, 2:4]
     _, olap = bbox_iou(data[:, :4], crop_coor_tensor, overlap=True)
-    print(crop_coor_tensor.size())
-    keep_flag = (olap > 0.5).squeeze()
+    keep_flag = (olap > 0.5).view(-1)
     keep_data = data[keep_flag, :]
     if keep_data.size(0) == 0:
         return keep_data
-    keep_data[:, :4] -= crop_coor_tensor[keep_flag, :2].repeat(1, 2)
+    keep_data[:, :4] -= crop_coor_tensor[:, :2].repeat(1, 2)
     keep_data[keep_data[:, 0] < 0, 0] = 0
     keep_data[keep_data[:, 1] < 0, 1] = 0
     keep_data[keep_data[:, 2] > w, 2] = w

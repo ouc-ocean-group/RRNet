@@ -9,7 +9,7 @@ class BaseOperator(object):
     """
     This is the parent class of all the models' operator.
     """
-    def __init__(self, cfg, model, optimizer=None, lr_sch=None):
+    def __init__(self, cfg, model, optimizer, lr_sch=None):
         """
         :param cfg: Configuration object.
         :param model: Network model, a nn.Module.
@@ -24,9 +24,6 @@ class BaseOperator(object):
 
         self.model = DistributedDataParallel(model, device_ids=[self.cfg.Distributed.gpu_id])
 
-        self.optimizer = optim.SGD(self.model.parameters(),
-                                   lr=cfg.train.lr, momentum=cfg.train.momentum,
-                                   weight_decay=cfg.train.weight_decay) if optimizer is None else optimizer
         self.lr_sch = lr_sch
 
     def criterion(self, outs, labels):

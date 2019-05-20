@@ -11,4 +11,4 @@ class FocalLoss(nn.Module):
         self.ignore = ignore
 
     def forward(self, input, target):
-        return focal_loss(input, target, self.alpha, self.gamma, self.classnum, self.ignore)
+        return focal_loss(input, target, self.alpha, self.gamma, self.class_num, self.ignore)

@@ -15,15 +15,15 @@ Config.num_classes = 11  # index 0 is not for the ignore region. It is the backg
 # Training Config =========================================
 Config.Train = edict()
 # If use the pretrained backbone model.
-Config.Train.pretrained = False
+Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 8
-Config.Train.num_workers = 2
+Config.Train.batch_size = 4
+Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
-Config.Train.lr = 0.01
+Config.Train.lr = 0.1
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
@@ -38,7 +38,7 @@ Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.transforms = Compose([
     ToTensor(),
     HorizontalFlip(),
-    RandomCrop(Config.Train.crop_size),
+    # RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std)
 ])
 

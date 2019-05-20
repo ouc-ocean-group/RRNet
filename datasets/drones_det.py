@@ -28,8 +28,10 @@ class DronesDET(Dataset):
         return len(self.mdf)
 
     def __getitem__(self, item):
-        img_name = os.path.join(self.images_dir, '{}.jpg'.format(self.mdf[item]))
-        txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(self.mdf[item]))
+        # name = self.mdf[item]
+        name = "0000363_01177_d_0000789"
+        img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
+        txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
         '''read image
         '''
         image = Image.open(img_name)
@@ -37,8 +39,8 @@ class DronesDET(Dataset):
         '''read annotation
         '''
         annotation = pd.read_csv(txt_name, header=None)
-        annotation = np.array(annotation).tolist()
-
+        annotation = np.array(annotation)
+        annotation = annotation[annotation[:, 5] != 11]
         sample = (image, annotation)
         if self.transforms:
             sample = self.transforms(sample)
@@ -46,12 +48,12 @@ class DronesDET(Dataset):
 
     @staticmethod
     def collate_fn(batch):
-        imgs, annos = [], torch.zeros(len(batch), 100, 8)
         max_n = 0
+        for i, batch_data in enumerate(batch):
+            max_n = max(max_n, batch_data[1].size(0))
+        imgs, annos = [], torch.zeros(len(batch), max_n, 8)
         for i, batch_data in enumerate(batch):
             imgs.append(batch_data[0].unsqueeze(0))
             annos[i, :batch_data[1].size(0), :] = batch_data[1]
-            max_n = max(max_n, batch_data[1].size(0))
         imgs = torch.cat(imgs)
-        annos = annos[:, :max_n, :]
         return imgs, annos

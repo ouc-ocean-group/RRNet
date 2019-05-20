@@ -17,6 +17,15 @@ class SharedDefromConv(nn.Module):
 
         num_filters = deformable_groups * 3 * kernel_size * kernel_size
         self.conv_offset_mask = SharedConv(dim_in, num_filters, kernel_size=kernel_size, stride=stride, dilation=[1,1,1])
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        n = self.in_channels
+        for k in self.kernel_size:
+            n *= k
+        stdv = 1. / math.sqrt(n)
+        self.weight.data.uniform_(-stdv, stdv)
+        self.bias.data.zero_()
 
     @staticmethod
     def _get_offset_mask(outs):

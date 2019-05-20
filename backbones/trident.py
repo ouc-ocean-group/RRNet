@@ -8,7 +8,7 @@ from dcn_v2 import dcn_v2_conv
 class SharedDefromConv(nn.Module):
     def __init__(self, dim_in, dim_out, kernel_size, stride, dilation, deformable_groups):
         super(SharedDefromConv, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(dim_in, dim_out, kernel_size,kernel_size))
+        self.weight = nn.Parameter(torch.Tensor(dim_in, dim_out, kernel_size, kernel_size))
         self.bias = nn.Parameter(torch.Tensor(dim_out))
         self.dilation = dilation
         self.deformable_groups = deformable_groups
@@ -16,7 +16,8 @@ class SharedDefromConv(nn.Module):
         self.stride = stride
 
         num_filters = deformable_groups * 3 * kernel_size * kernel_size
-        self.conv_offset_mask = SharedConv(dim_in, num_filters, kernel_size=kernel_size, stride=stride, dilation=[1,1,1])
+        self.conv_offset_mask = SharedConv(dim_in, num_filters, kernel_size=kernel_size, stride=stride,
+                                           dilation=[1, 1, 1])
         self.reset_parameters()
 
     def reset_parameters(self):
@@ -47,7 +48,7 @@ class SharedDefromConv(nn.Module):
         mask = torch.sigmoid(mask)
         offs.append(offset)
         masks.append(mask)
-        return offs,masks
+        return offs, masks
 
     def forward(self, x):
         out = self.conv_offset_mask(x)
@@ -58,7 +59,7 @@ class SharedDefromConv(nn.Module):
                            self.stride,
                            self.dilation[i] if self.kernel_size == 3 else 0,
                            self.dilation[i],
-                           self.deformable_groups) for i, (offset,mask) in enumerate(zip(offs, masks))]
+                           self.deformable_groups) for i, (offset, mask) in enumerate(zip(offs, masks))]
 
         return out
 
@@ -79,13 +80,10 @@ class SharedConv(nn.Module):
         self.dilation = dilation
 
     def forward(self, x):
-        out = []
-        out.append(F.conv2d(x[0], weight=self.weight, stride=self.stride,
-                            dilation=self.dilation[0], padding=self.dilation[0] if self.kernel_size == 3 else 0))
-        out.append(F.conv2d(x[1], weight=self.weight, stride=self.stride,
-                            dilation=self.dilation[1], padding=self.dilation[1] if self.kernel_size == 3 else 0))
-        out.append(F.conv2d(x[2], weight=self.weight, stride=self.stride,
-                            dilation=self.dilation[2], padding=self.dilation[2] if self.kernel_size == 3 else 0))
+        out = [
+            F.conv2d(x[i], weight=self.weight, stride=self.stride,
+                     dilation=self.dilation[i], padding=self.dilation[i] if self.kernel_size == 3 else 0) for i in range(len(x))
+        ]
         return out
 
 
@@ -117,7 +115,8 @@ class ResTridentUnit(nn.Module):
             nn.BatchNorm2d(dim_mid)
         ])
         if deform:
-            self.conv2 = SharedDefromConv(dim_in=dim_mid, dim_out=dim_mid,  kernel_size=3, stride=stride, dilation=[1, 2, 3], deformable_groups=4)
+            self.conv2 = SharedDefromConv(dim_in=dim_mid, dim_out=dim_mid, kernel_size=3, stride=stride,
+                                          dilation=[1, 2, 3], deformable_groups=4)
         else:
             self.conv2 = SharedConv(dim_in=dim_mid, dim_out=dim_mid, kernel_size=3, stride=stride, dilation=[1, 2, 3])
         self.bn3 = nn.ModuleList([
@@ -214,7 +213,6 @@ class ResTridentStage(nn.Module):
 class ResV2TridentNet(nn.ModuleList):
     def __init__(self, block, layers, deform=False):
         super(ResV2TridentNet, self).__init__()
-        self.inplanes = 64
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -222,9 +220,8 @@ class ResV2TridentNet(nn.ModuleList):
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, 256, layers[0])
         self.layer2 = self._make_layer(block, 256, 512, layers[1], stride=2)
-        self.layer3 = ResTridentStage(dim_in=512,dim_out=1024, stride=2, num_blocks=layers[2], deform=deform)
+        self.layer3 = ResTridentStage(dim_in=512, dim_out=1024, stride=2, num_blocks=layers[2], deform=deform)
         self.layer4 = self._make_layer(block, 1024, 2048, layers[3], stride=1)
-
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -259,21 +256,32 @@ class ResV2TridentNet(nn.ModuleList):
         l3 = self.layer3(l2)
         l4 = self.layer4(l3)
 
-        return l1,l2,l3,l4
+        return l1, l2, l3, l4
 
 
 def trident_res101v2():
     m = ResV2TridentNet(block=BottleNeckV2, layers=[3, 4, 23, 3])
     return m
 
+
 def trident_res50v2():
     m = ResV2TridentNet(block=BottleNeckV2, layers=[3, 4, 6, 3])
     return m
+
 
 def trident_res101v2_deform():
     m = ResV2TridentNet(block=BottleNeckV2, layers=[3, 4, 23, 3], deform=True)
     return m
 
+
 def trident_res50v2_deform():
     m = ResV2TridentNet(block=BottleNeckV2, layers=[3, 4, 6, 3], deform=True)
     return m
+
+if __name__ == '__main__':
+    x = torch.randn(2,64,16,16)
+    y = [x] *3
+    m = SharedConv(dim_in=64, dim_out=64, kernel_size=3,stride=1, dilation=[1,2,3])
+    z = m(y)
+    print(len(z))
+    print(z[0].size())

@@ -1,7 +1,7 @@
 import torch
 
 
-def focal_loss(cls_preds, cls_targets, gamma=2.0, alpha=0.99):
+def focal_loss(cls_preds, cls_targets, gamma=2.0, alpha=0.995):
     """
     cal focal loss for retinanet
     :param cls_preds: [N,H*W*anchors,classes]

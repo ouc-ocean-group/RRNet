@@ -1,5 +1,4 @@
 import torch
-import torch.nn.functional as F
 import torch.optim as optim
 from .base_operator import BaseOperator
 from models.retinanet import RetinaNet
@@ -26,21 +25,24 @@ class RetinaNetOperator(BaseOperator):
 
         self.training_loader, self.validation_loader = make_dataloader(cfg)
 
-        super(RetinaNetOperator, self).__init__(
-            cfg=self.cfg, model=model, lr_sch=self.lr_sch)
+        super(RetinaNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        self.anchor_maker = Anchors(sizes=(8, 16, 32, 64, 128))
+        self.anchor_maker = Anchors(sizes=(16, 32, 64))
+
+        self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
+            self.make_anchor(cfg.Train.crop_size)
 
         self.focal_loss = FocalLoss()
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0
 
     def make_anchor(self, size):
-        self.anchors = self.anchor_maker(size).cuda()
-        self.anchors_widths = self.anchors[:, 2] - self.anchors[:, 0]
-        self.anchors_heights = self.anchors[:, 3] - self.anchors[:, 1]
-        self.anchors_ctr_x = self.anchors[:, 0] + 0.5 * self.anchors_widths
-        self.anchors_ctr_y = self.anchors[:, 1] + 0.5 * self.anchors_heights
+        anchors = self.anchor_maker(size).cuda()
+        anchors_widths = anchors[:, 2] - anchors[:, 0]
+        anchors_heights = anchors[:, 3] - anchors[:, 1]
+        anchors_ctr_x = anchors[:, 0] + 0.5 * anchors_widths
+        anchors_ctr_y = anchors[:, 1] + 0.5 * anchors_heights
+        return anchors, anchors_widths, anchors_heights, anchors_ctr_x, anchors_ctr_y
 
     def criterion(self, outs, annos):
         loc_preds, cls_preds = outs  # (bs, AnchorN, ClassN), (bs, AnchorN, 4), e.g., (4, 97965, 4)
@@ -135,7 +137,6 @@ class RetinaNetOperator(BaseOperator):
                 imgs, annos = next(training_loader)
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
             annos = annos.cuda(self.cfg.Distributed.gpu_id)
-            self.make_anchor(imgs.size()[-2:])
             outs = self.model(imgs)
             cls_loss, loc_loss = self.criterion(outs, annos.clone())
             loss = cls_loss + loc_loss
@@ -158,11 +159,11 @@ class RetinaNetOperator(BaseOperator):
                     img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
                     pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
                     vis_img = visualize(img, pred_bbox)
-                    vis_img2 = visualize(img, annos[0])
+                    vis_gt_img = visualize(img, annos[0])
                     vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                    vis_img2 = torch.from_numpy(vis_img2).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                    vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
 
-                    log_data['imgs'] = {'train': [vis_img, vis_img2]}
+                    log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
 
                     logger.log(log_data, step)
 

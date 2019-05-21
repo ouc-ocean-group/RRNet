@@ -107,8 +107,9 @@ class CenterNetOperator(BaseOperator):
                     logger.log(log_data, step)
 
                     total_loss = 0
-                    total_cls_loss = 0
-                    total_loc_loss = 0
+                    total_hm_loss = 0
+                    total_wh_loss = 0
+                    total_off_loss = 0
 
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                         step == self.cfg.Train.iter_num - 1:

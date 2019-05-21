@@ -57,3 +57,4 @@ class DronesDET(Dataset):
         imgs = torch.cat(imgs)
         annos = annos[:, :max_n, :]
         return imgs, annos
+

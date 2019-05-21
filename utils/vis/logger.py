@@ -25,7 +25,7 @@ class Logger(object):
 
     def write_log_file(self, text):
         with open(os.path.join(self.log_dir, 'log.txt'), 'a+') as writer:
-            writer.write(text)
+            writer.write(text+'\n')
 
     def log(self, data, n_iter):
         """

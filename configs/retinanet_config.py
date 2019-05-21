@@ -10,7 +10,7 @@ Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
 Config.log_prefix = 'RetinaNet'
 Config.use_tensorboard = True
-Config.num_classes = 11  # index 0 is not for the ignore region. It is the background or negative region.
+Config.num_classes = 10
 
 # Training Config =========================================
 Config.Train = edict()
@@ -18,12 +18,12 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 4
+Config.Train.batch_size = 1
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
-Config.Train.lr = 0.1
+Config.Train.lr = 0.005
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
@@ -37,7 +37,7 @@ Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.transforms = Compose([
     ToTensor(),
-    HorizontalFlip(),
+    # HorizontalFlip(),
     # RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std)
 ])

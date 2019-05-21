@@ -9,7 +9,7 @@ class BaseOperator(object):
     """
     This is the parent class of all the models' operator.
     """
-    def __init__(self, cfg, model, optimizer, lr_sch=None):
+    def __init__(self, cfg, model, lr_sch=None):
         """
         :param cfg: Configuration object.
         :param model: Network model, a nn.Module.

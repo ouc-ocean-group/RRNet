@@ -1,5 +1,6 @@
 import random
 import torch
+from torch.nn.functional import pad
 import PIL
 import numpy as np
 from . import functional as F
@@ -47,20 +48,27 @@ class RandomCrop(object):
         h, w = data[0].size()[-2:]
         if (self.w, self.h) == (w, h):
             return data
-        assert self.w < w and self.h < h
+        if self.w > w or self.h > h:
+            padded_img = pad(data[0], [0, self.w-w, 0, self.h-h])
+            return padded_img, data[1]
 
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
-        crop_coordinate = int(ry), int(rx), int(ry) + self.h, int(rx) + self.w
+        crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
         cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
         if cropped_annos.size(0) == 0:
-            # rand_idx = random.randint(0, data[1].size(0) - 1)
-            rand_idx = 0
-            include_bbox = data[1][rand_idx, :]
-            y2, x2 = include_bbox[0] + np.random.uniform(-1, 1) * 0.3 * float(include_bbox[2]) + self.h, \
-                     include_bbox[1] + np.random.uniform(-1, 1) * 0.3 * float(include_bbox[3]) + self.w
-            offset_y, offset_x = max(y2 - h, 0), max(x2 - w, 0)
-            y2, x2 = y2 - offset_y, x2 - offset_x
-            crop_coordinate = y2 - self.h, x2 - self.w, y2, x2
+            rand_idx = torch.randint(0, data[1].size(0), (1,))
+            include_bbox = data[1][rand_idx, :].squeeze()
+            x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
+                             include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
+            max_x1_ = min(x1, w-self.w)
+            max_y1_ = min(y1, h-self.h)
+            min_x1_ = max(0, x2-self.w)
+            min_y1_ = max(0, y2-self.h)
+            min_x1, max_x1 = sorted([max_x1_, min_x1_])
+            min_y1, max_y1 = sorted([max_y1_, min_y1_])
+            x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
+            y1 = np.random.randint(min_y1, max_y1) if min_y1 != max_y1 else min_y1
+            crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
             cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
         cropped_img = F.crop_tensor(data[0], crop_coordinate)
         return cropped_img, cropped_annos

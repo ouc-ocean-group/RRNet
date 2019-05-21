@@ -5,8 +5,8 @@ import torch.nn.functional as F
 class FPN(nn.Module):
     def __init__(self):
         super(FPN, self).__init__()
-        self.conv6 = nn.Conv2d(2048, 256, kernel_size=3, stride=2, padding=1)
-        self.conv7 = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
+        # self.conv6 = nn.Conv2d(2048, 256, kernel_size=3, stride=2, padding=1)
+        # self.conv7 = nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1)
 
         # Lateral layers
         self.lat_layer1 = nn.Conv2d(2048, 256, kernel_size=1, stride=1, padding=0)
@@ -40,12 +40,12 @@ class FPN(nn.Module):
         return F.interpolate(x, size=(H, W), mode='bilinear', align_corners=False) + y
 
     def forward(self, c3, c4, c5):
-        p6 = self.conv6(c5)
-        p7 = self.conv7(F.relu(p6))
+        # p6 = self.conv6(c5)
+        # p7 = self.conv7(F.relu(p6))
         # Top-down
         p5 = self.lat_layer1(c5)
         p4 = self.upsample_add(p5, self.lat_layer2(c4))
         p4 = self.top_layer1(p4)
         p3 = self.upsample_add(p4, self.lat_layer3(c3))
         p3 = self.top_layer2(p3)
-        return p3, p4, p5, p6, p7
+        return p3, p4, p5

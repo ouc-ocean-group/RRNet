@@ -36,3 +36,22 @@ class BasicCov(nn.Module):
         bn = self.bn(conv)
         relu = self.relu(bn)
         return relu
+
+class CenterNet_HM_Detector(nn.Module):
+    def __init__(self, planes, hm=True, num_stacks=2):
+        super( CenterNet_HM_Detector,self).__init__()
+        self.hm = hm
+        self.num_stacks = num_stacks
+        self.detect_layer = nn.ModuleList([nn.Sequential(
+            BasicCov(3, 256, 256, with_bn=False),
+            nn.Conv2d(256, planes, (1, 1))
+        ) for _ in range(self.num_stacks)
+        ])
+        if self.hm:
+            for heat in self.detect_layer:
+                heat[-1].bias.data.fill_(-2.19)
+
+    def forward(self, input, index):
+        output = self.detect_layer[index](input)
+        output = F.interpolate(output, scale_factor=4, mode='bilinear', align_corners=True)
+        return output

@@ -21,9 +21,10 @@ def _neg_loss(pred, gt):
         pred (batch x c x h x w)
         gt_regr (batch x c x h x w)
     '''
+    print(pred.size(), gt.size())
     pos_inds = gt.eq(1).float()
     neg_inds = gt.lt(1).float()
-
+    
     neg_weights = torch.pow(1 - gt, 4)
 
     loss = 0

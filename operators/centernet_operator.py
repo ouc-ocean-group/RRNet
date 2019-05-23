@@ -48,11 +48,11 @@ class CenterNetOperator(BaseOperator):
             reg = regs[s]
             hm = torch.clamp(hm.sigmoid_(), min=1e-4, max=1 - 1e-4)
             # Heatmap Loss
-            hm_loss += self.focal_loss(hm, t_hms) / self.cfg.num_stacks
+            hm_loss += self.focal_loss(hm, t_hms) / self.cfg.Modle.num_stacks
             # WH Loss
-            wh_loss += self.l1_loss(wh, t_reg_masks, t_inds, t_whs) / self.cfg.num_stacks
+            wh_loss += self.l1_loss(wh, t_reg_masks, t_inds, t_whs) / self.cfg.Module.num_stacks
             # OffSet Loss
-            off_loss += self.l1_loss(reg, t_reg_masks, t_inds, t_regs) / self.cfg.num_stacks
+            off_loss += self.l1_loss(reg, t_reg_masks, t_inds, t_regs) / self.cfg.Module.num_stacks
         return hm_loss, wh_loss, off_loss
 
     def training_process(self):

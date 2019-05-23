@@ -82,11 +82,11 @@ class DronesDET(Dataset):
             reg_masks.append(reg_mask)
 
         imgs = torch.cat(imgs)
-        hms = torch.cat(hms)
-        whs = torch.cat(whs)
-        inds = torch.cat(inds)
-        regs = torch.cat(regs)
-        reg_masks = torch.cat(reg_masks)
+        hms = torch.stack(hms)
+        whs = torch.stack(whs)
+        inds = torch.stack(inds)
+        regs = torch.stack(regs)
+        reg_masks = torch.stack(reg_masks)
         # annos = hms, whs, regs, inds, reg_masks
         return imgs, hms, whs, regs, inds, reg_masks
 

@@ -69,7 +69,7 @@ Config.Val.transforms = Compose([
 Config.Model = edict()
 
 Config.Model.backbone = 'hourglass'
-Config.Model.hm_detector = 'centernet_detector'
+Config.Model.hm_detector = 'centernet_hm_detector'
 Config.Model.wh_detector = 'centernet_detector'
 Config.Model.reg_detector = 'centernet_detector'
 Config.Model.num_stacks = 2

@@ -10,7 +10,7 @@ from .base_operator import BaseOperator
 
 from datasets import make_dataloader
 from utils.vis.logger import Logger
-
+from modules.anchor import Anchors
 from datasets.transforms.functional import denormalize, gaussian_radius, draw_umich_gaussian
 from utils.vis.annotations import visualize
 
@@ -48,11 +48,11 @@ class CenterNetOperator(BaseOperator):
             reg = regs[s]
             hm = torch.clamp(hm.sigmoid_(), min=1e-4, max=1 - 1e-4)
             # Heatmap Loss
-            hm_loss += self.focal_loss(hm, t_hms) / self.cfg.Modle.num_stacks
+            hm_loss += self.focal_loss(hm, t_hms) / self.cfg.Model.num_stacks
             # WH Loss
-            wh_loss += self.l1_loss(wh, t_reg_masks, t_inds, t_whs) / self.cfg.Module.num_stacks
+            wh_loss += self.l1_loss(wh, t_reg_masks, t_inds, t_whs) / self.cfg.Model.num_stacks
             # OffSet Loss
-            off_loss += self.l1_loss(reg, t_reg_masks, t_inds, t_regs) / self.cfg.Module.num_stacks
+            off_loss += self.l1_loss(reg, t_reg_masks, t_inds, t_regs) / self.cfg.Model.num_stacks
         return hm_loss, wh_loss, off_loss
 
     def training_process(self):
@@ -114,14 +114,14 @@ class CenterNetOperator(BaseOperator):
                         'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
                     }}
 
-                    img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                    pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
-                    vis_img = visualize(img, pred_bbox)
-                    vis_gt_img = visualize(img, annos[0])
-                    vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                    vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                    # img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+                    # pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+                    # vis_img = visualize(img, pred_bbox)
+                    # vis_gt_img = visualize(img, annos[0])
+                    # vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                    # vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
 
-                    log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
+                    # log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
                     logger.log(log_data, step)
 
                     total_loss = 0
@@ -132,6 +132,10 @@ class CenterNetOperator(BaseOperator):
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                         step == self.cfg.Train.iter_num - 1:
                     self.save_ckp(self.model.module, step, logger.log_dir)
+
+
+
+
     def transform_bbox(self, cls_pred, loc_pred):
         """
         Transform prediction class and location into bbox coordinate.

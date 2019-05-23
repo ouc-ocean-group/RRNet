@@ -1,9 +1,14 @@
 from operators.distributed_wrapper import DistributedWrapper
 
-from configs.centernet_config import Config
-from operators.centernet_operator import CenterNetOperator
+# ==== import your configuration here ===
+from configs.retinanet_config import Config
+# ==== import your model operator here ===
+from operators.retinanet_operator import RetinaNetOperator
 
-if __name__ == '__main__':
-    dis_operator = DistributedWrapper(Config, CenterNetOperator)
+
+if __name__ == "__main__":
+    dis_operator = DistributedWrapper(Config, RetinaNetOperator)
+
     dis_operator.train()
-    print('Training is Done!')
+
+    print("Training is Done!")

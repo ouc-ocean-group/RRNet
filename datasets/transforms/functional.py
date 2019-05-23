@@ -146,3 +146,26 @@ def color_jitter(data, brightness, contrast, saturation):
     im = ImageEnhance.Contrast(im).enhance(r_contrast)
     im = ImageEnhance.Color(im).enhance(r_saturation)
     return im
+
+
+def mask_ignore(data, mean=(0.485, 0.456, 0.406), ignore_cls=0):
+    """
+    Mask the ignore region with mean value, and remove all the bbox annotations of ignore region.
+    :param data: (Tensor, Tensor) image and annotation
+    :param mean: Mean value.
+    :param ignore_cls: Ignore class idx.
+    :return: (Tensor, Tensor) transformed image and annotation
+    """
+    mean = torch.tensor(mean).unsqueeze(1).unsqueeze(1)
+    img = data[0]
+    ign_idx = data[1][:, 5] == ignore_cls
+
+    ign_bboxes = data[1][ign_idx, :4]
+
+    for ign_bbox in ign_bboxes:
+        x, y, w, h = ign_bbox[:4]
+        img[:, int(y):int(y+h), int(x):int(x+w)] = mean
+
+    anno = data[1][1-ign_idx, :]
+
+    return img, anno

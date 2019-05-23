@@ -18,8 +18,7 @@ class RetinaNetOperator(BaseOperator):
 
         model = RetinaNet(cfg).cuda(cfg.Distributed.gpu_id)
 
-        self.optimizer = optim.SGD(model.parameters(),
-                                   lr=cfg.Train.lr, momentum=cfg.Train.momentum, weight_decay=cfg.Train.weight_decay)
+        self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 
@@ -27,7 +26,7 @@ class RetinaNetOperator(BaseOperator):
 
         super(RetinaNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        self.anchor_maker = Anchors(sizes=(16, 32, 64))
+        self.anchor_maker = Anchors(sizes=(16, 64, 128))
 
         self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
             self.make_anchor(cfg.Train.crop_size)
@@ -107,6 +106,8 @@ class RetinaNetOperator(BaseOperator):
                     regression_diff - 0.5 / 9.0
                 )
                 reg_losses.append(reg_loss.mean())
+            else:
+                reg_losses.append(torch.zeros(1).to(loc_preds.device))
 
         return sum(cls_losses) / bs_num, sum(reg_losses) / bs_num
 
@@ -125,7 +126,7 @@ class RetinaNetOperator(BaseOperator):
         training_loader = iter(self.training_loader)
 
         for step in range(self.cfg.Train.iter_num):
-            # self.lr_sch.step()
+            self.lr_sch.step()
             self.optimizer.zero_grad()
 
             try:
@@ -182,8 +183,9 @@ class RetinaNetOperator(BaseOperator):
         :param loc_pred: (AnchorsN, 4)
         :return: BBox, (N, 8)
         """
+        cls_pred = cls_pred.sigmoid()
         cls_pred_prob, cls_pred_idx = cls_pred.max(dim=1)
-        object_idx = cls_pred_prob > 0.05
+        object_idx = cls_pred_prob > 0.1
         cls_prob = cls_pred_prob[object_idx]
         cls = cls_pred_idx[object_idx] + 1
         boxes = self.anchors[object_idx, :]

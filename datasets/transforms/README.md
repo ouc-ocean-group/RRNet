@@ -6,11 +6,12 @@ All the input data in these transforms is a tuple consists of the image and the 
 - Normalize
 - RandomCrop
 - ColorJitter
+- MaskIgnore
 
 The recommended transforms order is:
 
 ```python
-ColorJitter > ToTensor > HorizontalFlip > RandomCrop > Normalize
+ColorJitter > ToTensor > HorizontalFlip > RandomCrop > Normalize > MaskIgnore
 ```
 
 A transform demo:

@@ -39,7 +39,8 @@ Config.Train.transforms = Compose([
     ToTensor(),
     HorizontalFlip(),
     RandomCrop(Config.Train.crop_size),
-    Normalize(Config.Train.mean, Config.Train.std)
+    Normalize(Config.Train.mean, Config.Train.std),
+    MaskIgnore(Config.Train.mean)
 ])
 
 # Log params.

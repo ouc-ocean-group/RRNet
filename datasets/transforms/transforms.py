@@ -85,3 +85,15 @@ class ColorJitter(object):
                isinstance(data[0], PIL.PngImagePlugin.PngImageFile) or \
                isinstance(data[0], PIL.JpegImagePlugin.JpegImageFile)
         return F.color_jitter(data[0], self.brightness, self.contrast, self.saturation), data[1]
+
+
+class MaskIgnore(object):
+    def __init__(self, mean=(0.485, 0.456, 0.406), ignore_idx=0):
+        self.mean = mean
+        self.ignore_idx = ignore_idx
+
+    def __call__(self, data):
+        assert isinstance(data[0], torch.Tensor)
+        assert isinstance(data[1], torch.Tensor)
+
+        return F.mask_ignore(data, self.mean, self.ignore_idx)

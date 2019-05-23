@@ -169,8 +169,7 @@ class CenterNetOperator(BaseOperator):
 
     def evaluation_process(self):
         pass
-    def evaluation_process(self):
-        pass
+
 
     # TODO these function is np, it may cause bugs
     def trans_anns(self, images, anns):

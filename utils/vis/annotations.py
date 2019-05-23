@@ -13,13 +13,14 @@ def visualize(img, annos, classnames=CLASS_NAMES):
     :param classnames: class name text
     :return: marked image
     """
+    img = img.copy()
     font = cv2.FONT_HERSHEY_DUPLEX
     colors = load_colors()
     for anno in annos:
         if not isinstance(anno, torch.Tensor):
             anno = anno.strip().split(',')
-        x, y, w, h, score, cls, trc, occ = \
-            int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), anno[4], anno[5], anno[6], anno[7]
+        x, y, w, h, score, cls = \
+            int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), anno[4], anno[5]
         cv2.rectangle(img, (x, y), (x + w, y + h), colors[int(cls)], 1)
 
     for i in range(len(classnames)):
@@ -42,10 +43,9 @@ def load_colors(num=12):
 
 
 if __name__ == '__main__':
-    dev_img = cv2.imread('../../data/demo/images/0000364_01765_d_0000782.jpg')
-    with open('../../data/demo/annotations/0000364_01765_d_0000782.txt', 'r') as reader:
+    dev_img = cv2.imread('../../data/test/images/9999936_00000_d_0000070.jpg')
+    with open('../../../40000/9999936_00000_d_0000070.txt', 'r') as reader:
         dev_annos = reader.readlines()
     marked_img = visualize(dev_img, dev_annos)
-    cv2.imshow('demo', marked_img)
-    cv2.imwrite('vis_demo.jpg', marked_img)
+    cv2.imwrite('../../../vis_demo.jpg', marked_img)
     cv2.waitKey(0)

@@ -146,3 +146,16 @@ def color_jitter(data, brightness, contrast, saturation):
     im = ImageEnhance.Contrast(im).enhance(r_contrast)
     im = ImageEnhance.Color(im).enhance(r_saturation)
     return im
+
+
+def mask_ignore(data, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), ignore_cls=0):
+    assert isinstance(data[0], torch.Tensor) and isinstance(data[1], torch.Tensor)
+
+    ign_idx = data[1][:, 5] == ignore_cls
+
+    ign_bboxes = data[1][ign_idx, :4]
+
+    for ign_bbox in ign_bboxes:
+        x, y, w, h = ign_bbox[:4]
+
+        

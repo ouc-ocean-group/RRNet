@@ -1,74 +1,83 @@
 from datasets.transforms import *
 from torch.utils.data import DistributedSampler
+from easydict import EasyDict as edict
 
 
-class Config:
-    dataset = 'drones_det'
-    data_root = './DronesDET'
-    log_prefix = 'CenterNet'
-    use_tensorboard = True
-    # index 0 is not for the ignore region. It is the background or negative region.
-    num_classes = 12
+# Base Config ============================================
+Config = edict()
+Config.seed = 219
+Config.dataset = 'drones_det'
+Config.data_root = './data/DronesDET'
+Config.log_prefix = 'CenterNet'
+Config.use_tensorboard = True
+Config.num_classes = 10
 
-    class Train:
-        # If use the pretrained backbone model.
-        pretrained = True
+# Training Config =========================================
+Config.Train = edict()
+# If use the pretrained backbone model.
+Config.Train.pretrained = True
 
-        # Dataloader params.
-        batch_size = 8
-        num_workers = 2
-        sampler = DistributedSampler
+# Dataloader params.
+Config.Train.batch_size = 4
+Config.Train.num_workers = 4
+Config.Train.sampler = DistributedSampler
 
-        # Optimizer params.
-        lr = 0.01
-        momentum = 0.9
-        weight_decay = 0.0001
-        # Milestones for changing learning rage.
-        lr_milestones = [60000, 80000]
+# Optimizer params.
+Config.Train.lr = 0.01
+Config.Train.momentum = 0.9
+Config.Train.weight_decay = 0.0001
+# Milestones for changing learning rage.
+Config.Train.lr_milestones = [60000, 80000]
 
-        iter_num = 90000
+Config.Train.iter_num = 90000
 
-        # Transforms
-        crop_size = (512, 512)
-        mean = (0.485, 0.456, 0.406)
-        std = (0.229, 0.224, 0.225)
-        transforms = Compose([
-            ToTensor(),
-            HorizontalFlip(),
-            RandomCrop(crop_size),
-            Normalize(mean, std)
-        ])
+# Transforms
+Config.Train.crop_size = (512, 512)
+Config.Train.mean = (0.485, 0.456, 0.406)
+Config.Train.std = (0.229, 0.224, 0.225)
+Config.Train.transforms = Compose([
+    ToTensor(),
+    HorizontalFlip(),
+    RandomCrop(Config.Train.crop_size),
+    Normalize(Config.Train.mean, Config.Train.std)
+])
 
-        # Log params.
-        print_interval = 20
-        checkpoint_interval = 30000
+# Log params.
+Config.Train.print_interval = 20
+Config.Train.checkpoint_interval = 30000
 
-    class Val:
-        model_path = './log/model.pth'
 
-        # Dataloader params.
-        batch_size = 2
-        num_workers = 4
-        sampler = DistributedSampler
+# Validation Config =========================================
+Config.Val = edict()
+Config.Val.model_path = './log/model.pth'
 
-        # Transforms
-        mean = (0.485, 0.456, 0.406)
-        std = (0.229, 0.224, 0.225)
-        transforms = Compose([
-            ToTensor(),
-            Normalize(mean, std)
-        ])
+# Dataloader params.
+Config.Val.batch_size = 2
+Config.Val.num_workers = 4
+Config.Val.sampler = DistributedSampler
 
-    class Model:
-        backbone = 'hourglass'
-        hm_detector = 'centernet_detector'
-        wh_detector = 'centernet_detector'
-        reg_detector = 'centernet_detector'
-        num_stacks = 2
+# Transforms
+Config.Val.mean = (0.485, 0.456, 0.406)
+Config.Val.std = (0.229, 0.224, 0.225)
+Config.Val.transforms = Compose([
+    ToTensor(),
+    Normalize(Config.Val.mean, Config.Val.std)
+])
 
-    class Distributed:
-        world_size = 1
-        gpu_id = -1
-        rank = 0
-        ngpus_per_node = 1
-        dist_url = 'tcp://127.0.0.1:34567'
+
+# Model Config ===============================================
+Config.Model = edict()
+
+Config.Model.backbone = 'hourglass'
+Config.Model.hm_detector = 'centernet_detector'
+Config.Model.wh_detector = 'centernet_detector'
+Config.Model.reg_detector = 'centernet_detector'
+Config.Model.num_stacks = 2
+
+# Distributed Config =========================================
+Config.Distributed = edict()
+Config.Distributed.world_size = 1
+Config.Distributed.gpu_id = -1
+Config.Distributed.rank = 0
+Config.Distributed.ngpus_per_node = 1
+Config.Distributed.dist_url = 'tcp://127.0.0.1:34567'

@@ -27,7 +27,9 @@ class RetinaNet(nn.Module):
             cls_pre = cls_pre.permute(0, 2, 3, 1).contiguous().view(input.size(0), -1, self.num_classes)
             loc_pres.append(loc_pre)
             cls_pres.append(cls_pre)
-        return torch.cat(loc_pres, 1), torch.cat(cls_pres, 1)
+        loc_pre = torch.cat(loc_pres, 1)
+        cls_pre = torch.cat(cls_pres, 1)
+        return loc_pre, cls_pre
 
 
 def build_net(cfg):

@@ -1,15 +1,19 @@
-import torch
-import torch.nn.functional as F
-import torch.optim as optim
-from .base_operator import BaseOperator
+
 from models.centernet import CenterNet
-from datasets import make_dataloader
-from utils.vis.logger import Logger
 from modules.loss.focalloss2 import FocalLoss
 import numpy as np
 import math
-from utils.functional import gaussian_radius, draw_umich_gaussian
 from modules.loss.regl1loss import RegL1Loss
+import torch
+import torch.optim as optim
+from .base_operator import BaseOperator
+
+from datasets import make_dataloader
+from utils.vis.logger import Logger
+
+from datasets.transforms.functional import denormalize, gaussian_radius, draw_umich_gaussian
+from utils.vis.annotations import visualize
+
 
 
 class CenterNetOperator(BaseOperator):
@@ -26,7 +30,7 @@ class CenterNetOperator(BaseOperator):
         self.training_loader, self.validation_loader = make_dataloader(cfg)
 
         super(CenterNetOperator, self).__init__(
-            cfg=self.cfg, model=model, optimizer=self.optimizer, lr_sch=self.lr_sch)
+            cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
         # TODO change it to our class
         self.focal_loss = FocalLoss()
@@ -36,9 +40,9 @@ class CenterNetOperator(BaseOperator):
 
     def criterion(self, outs, annos):
         hms, whs, regs = outs
-        t_hms, t_whs, t_inds, t_regs, t_reg_masks=annos
+        t_hms, t_whs, t_regs, t_inds, t_reg_masks=annos
         hm_loss, wh_loss, off_loss = 0, 0, 0
-        for s in range(self.cfg.num_stacks):
+        for s in range(self.cfg.Model.num_stacks):
             hm = hms[s]
             wh = whs[s]
             reg = regs[s]
@@ -71,18 +75,24 @@ class CenterNetOperator(BaseOperator):
             self.optimizer.zero_grad()
 
             try:
-                imgs, annos = next(training_loader)
+                # imgs, annos = next(training_loader)
+                imgs, hms, whs, regs, inds, reg_masks = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
-                imgs, annos = next(training_loader)
+                # imgs, annos = next(training_loader)
+                imgs, hms, whs, regs, inds, reg_masks = next(training_loader)
 
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
-            annos = annos.cuda(self.cfg.Distributed.gpu_id)
-
+            hms = hms.cuda(self.cfg.Distributed.gpu_id)
+            whs = whs.cuda(self.cfg.Distributed.gpu_id)
+            regs = regs.cuda(self.cfg.Distributed.gpu_id)
+            inds = inds.cuda(self.cfg.Distributed.gpu_id)
+            reg_masks = reg_masks.cuda(self.cfg.Distributed.gpu_id)
+            annos = hms, whs, regs, inds, reg_masks
             outs = self.model(imgs)
-            annos= self.trans_anns(imgs,annos)
+            # annos= self.trans_anns(imgs,annos)
             hm_loss, wh_loss, off_loss = self.criterion(outs, annos)
             loss = hm_loss + wh_loss + off_loss
             # TODO if here use loss.mean()
@@ -104,6 +114,14 @@ class CenterNetOperator(BaseOperator):
                         'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
                     }}
 
+                    img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+                    pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+                    vis_img = visualize(img, pred_bbox)
+                    vis_gt_img = visualize(img, annos[0])
+                    vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                    vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+
+                    log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
                     logger.log(log_data, step)
 
                     total_loss = 0
@@ -114,7 +132,43 @@ class CenterNetOperator(BaseOperator):
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                         step == self.cfg.Train.iter_num - 1:
                     self.save_ckp(self.model.module, step, logger.log_dir)
+    def transform_bbox(self, cls_pred, loc_pred):
+        """
+        Transform prediction class and location into bbox coordinate.
+        :param cls_pred: (AnchorN, ClassN)
+        :param loc_pred: (AnchorsN, 4)
+        :return: BBox, (N, 8)
+        """
+        cls_pred_prob, cls_pred_idx = cls_pred.max(dim=1)
+        object_idx = cls_pred_prob > 0.05
+        cls_prob = cls_pred_prob[object_idx]
+        cls = cls_pred_idx[object_idx] + 1
+        boxes = self.anchors[object_idx, :]
+        deltas = loc_pred[object_idx, :]
+        widths = boxes[:, 2] - boxes[:, 0]
+        heights = boxes[:, 3] - boxes[:, 1]
+        ctr_x = boxes[:, 0] + 0.5 * widths
+        ctr_y = boxes[:, 1] + 0.5 * heights
+        mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32)).cuda()
+        std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).cuda()
+        dx = deltas[:, 0] * std[0] + mean[0]
+        dy = deltas[:, 1] * std[1] + mean[1]
+        dw = deltas[:, 2] * std[2] + mean[2]
+        dh = deltas[:, 3] * std[3] + mean[3]
 
+        pred_ctr_x = ctr_x + dx * widths
+        pred_ctr_y = ctr_y + dy * heights
+        pred_w = torch.exp(dw) * widths
+        pred_h = torch.exp(dh) * heights
+
+        pred_x = pred_ctr_x - 0.5 * pred_w
+        pred_y = pred_ctr_y - 0.5 * pred_h
+
+        pred = torch.stack([pred_x, pred_y, pred_w, pred_h, cls_prob, cls.float()]).t()
+        return pred
+
+    def evaluation_process(self):
+        pass
     def evaluation_process(self):
         pass
 

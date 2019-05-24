@@ -8,8 +8,9 @@ class Controller(torch.nn.Module):
         torch.nn.Module.__init__(self)
         self.cfg = cfg
 
-        self.operations_num = cfg.NAS.sn_operations_num
-        self.layers_num = cfg.sn_layers_num
+        # self.operations_num = cfg.ss_operations_num
+        self.layers_num = cfg.ss_num  # 7 by default
+        self.path_num = cfg.path_num  # 3 by default
 
         self.lstm_size = cfg.lstm_size
         self.temperature = cfg.temperature
@@ -25,7 +26,6 @@ class Controller(torch.nn.Module):
         self.w_attn_1 = nn.Linear(self.lstm_size, self.lstm_size, bias=False)
         self.w_attn_2 = nn.Linear(self.lstm_size, self.lstm_size, bias=False)
         self.index_fc = nn.Linear(self.lstm_size, 1, bias=False)
-
         self.op_fc = nn.Linear(self.lstm_size, self.operations_num, bias=False)
 
         # attention
@@ -126,12 +126,3 @@ class Controller(torch.nn.Module):
         anchors_w_1.append(self.w_attn_1(next_h))
 
         return next_h, next_c, node_index, node_log_prob, node_entropy, op_index, op_log_prob, op_entropy
-
-
-if __name__ == '__main__':
-    from configs.nas_cifar_config import Config
-
-    controller = Controller(Config).cuda()
-
-    arch_seq, entropy, log_prob = controller.sample_arch()
-

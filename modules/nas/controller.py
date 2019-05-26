@@ -41,6 +41,13 @@ class Controller(torch.nn.Module):
             nn.init.uniform_(param, -0.1, 0.1)
 
     def forward(self):
+        """
+        Sample architecture.
+        :return: path_seq, layer_seq, entropy, log_prob
+        e.g.,
+        tensor([1, 1, 1, 1, 2, 1, 0, 1, 0, 2, 1, 0, 1, 2, 1, 2, 0, 1, 1, 0, 0])
+        tensor([0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 2, 0, 4, 1, 4, 0, 1, 0, 4, 2, 3])
+        """
         path_seq, layer_seq, entropy, log_prob = self.sample_arch(device=self.path_index_fc[0].weight.device)
         return path_seq, layer_seq, entropy, log_prob
 
@@ -113,11 +120,9 @@ class Controller(torch.nn.Module):
         return next_c, next_h, node_index, node_log_prob, node_entropy, anchor_w_1
 
 
-if __name__ == '__main__':
-    from configs.nas_retinanet_config import Config
-
-    ctl = Controller(Config)
-
-    p_seq, l_seq, ent, prb = ctl.forward()
-
-
+# if __name__ == '__main__':
+#     from configs.nas_retinanet_config import Config
+#     ctl = Controller(Config)
+#     p_seq, l_seq, ent, prb = ctl.forward()
+#     print(p_seq)
+#     print(l_seq)

@@ -21,6 +21,8 @@ Config.NAS.lstm_size = 64
 Config.NAS.temperature = 0.5
 Config.NAS.controller_tanh_constant = 0.2
 
+Config.NAS.fpn_inplane = 256
+
 # Training Config =========================================
 Config.Train = edict()
 # If use the pretrained backbone model.

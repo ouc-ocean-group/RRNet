@@ -26,7 +26,7 @@ class RetinaNetOperator(BaseOperator):
 
         super(RetinaNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        self.anchor_maker = Anchors(sizes=(20, 48, 100))
+        self.anchor_maker = Anchors(sizes=(16, 64, 128))
 
         self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
             self.make_anchor(cfg.Train.crop_size)

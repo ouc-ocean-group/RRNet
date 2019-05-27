@@ -45,4 +45,13 @@ Object of FPN Module
 Object of detector Module
 
 
+#### FunctionName: get_trident
 
+##### Params
+
+- **backbone** : backbone name  `['trires50', 'trires101']`
+- **deform**: bool `True or False`
+
+##### Return
+
+Trident ResNetV2 Backbone with/without deformable convolution

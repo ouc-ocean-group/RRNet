@@ -10,6 +10,7 @@ from utils.metrics.metrics import bbox_iou
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 import numpy as np
+from ext.nms_wrapper import nms
 
 
 class RetinaNetOperator(BaseOperator):
@@ -26,7 +27,7 @@ class RetinaNetOperator(BaseOperator):
 
         super(RetinaNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        self.anchor_maker = Anchors(sizes=(16, 64, 128))
+        self.anchor_maker = Anchors(sizes=(20, 40, 80))
 
         self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
             self.make_anchor(cfg.Train.crop_size)
@@ -56,7 +57,7 @@ class RetinaNetOperator(BaseOperator):
             anno = annos[n]  # (AnnoN, 8), e.g., (97965, 8)
             iou = bbox_iou(anno[:, :4], self.anchors)  # (AnnoN, AnchorN)  e.g., (101, 97965)
             max_iou, max_idx = torch.max(iou, dim=0)  # (AnchorN)
-            pos_idx = torch.ge(max_iou, 0.5)
+            pos_idx = torch.ge(max_iou, 0.6)
             neg_idx = torch.lt(max_iou, 0.4)
             cls_idx = pos_idx + neg_idx
             # I. Classification loss
@@ -112,7 +113,8 @@ class RetinaNetOperator(BaseOperator):
         return sum(cls_losses) / bs_num, sum(reg_losses) / bs_num
 
     def training_process(self):
-        logger = Logger(self.cfg, self.main_proc_flag)
+        if self.main_proc_flag:
+            logger = Logger(self.cfg)
 
         self.model.train()
 
@@ -129,7 +131,7 @@ class RetinaNetOperator(BaseOperator):
             self.optimizer.zero_grad()
 
             try:
-                imgs, annos = next(training_loader)
+                imgs, annos,names = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
@@ -146,42 +148,43 @@ class RetinaNetOperator(BaseOperator):
             total_loss += loss.item()
             total_cls_loss += cls_loss.item()
             total_loc_loss += loc_loss.item()
+            if self.main_proc_flag:
+                if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
+                    # Loss
+                    log_data = {'scalar': {
+                        'train/total_loss': total_loss / self.cfg.Train.print_interval,
+                        'train/cls_loss': total_cls_loss / self.cfg.Train.print_interval,
+                        'train/loc_loss': total_loc_loss / self.cfg.Train.print_interval,
+                    }}
 
-            if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
-                # Loss
-                log_data = {'scalar': {
-                    'train/total_loss': total_loss / self.cfg.Train.print_interval,
-                    'train/cls_loss': total_cls_loss / self.cfg.Train.print_interval,
-                    'train/loc_loss': total_loc_loss / self.cfg.Train.print_interval,
-                }}
+                    img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+                    pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+                    vis_img = visualize(img, pred_bbox)
+                    vis_gt_img = visualize(img, annos[0])
+                    vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                    vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
 
-                img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
-                vis_img = visualize(img, pred_bbox)
-                vis_gt_img = visualize(img, annos[0])
-                vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                    log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
 
-                log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
+                    logger.log(log_data, step)
 
-                logger.log(log_data, step)
+                    total_loss = 0
+                    total_cls_loss = 0
+                    total_loc_loss = 0
 
-                total_loss = 0
-                total_cls_loss = 0
-                total_loc_loss = 0
+                if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
+                        step == self.cfg.Train.iter_num - 1:
+                    self.save_ckp(self.model.module, step, logger.log_dir)
 
-            if self.main_proc_flag and (
-                    step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or\
-                    step == self.cfg.Train.iter_num - 1):
-                self.save_ckp(self.model.module, step, logger.log_dir)
-
-    def transform_bbox(self, cls_pred, loc_pred):
+    def transform_bbox(self, cls_pred, loc_pred, gpu_id=None):
         """
         Transform prediction class and location into bbox coordinate.
         :param cls_pred: (AnchorN, ClassN)
         :param loc_pred: (AnchorsN, 4)
         :return: BBox, (N, 8)
         """
+        if gpu_id is None:
+            gpu_id = self.cfg.Distributed.gpu_id
         cls_pred = cls_pred.sigmoid()
         cls_pred_prob, cls_pred_idx = cls_pred.max(dim=1)
         object_idx = cls_pred_prob > 0.1
@@ -193,8 +196,8 @@ class RetinaNetOperator(BaseOperator):
         heights = boxes[:, 3] - boxes[:, 1]
         ctr_x = boxes[:, 0] + 0.5 * widths
         ctr_y = boxes[:, 1] + 0.5 * heights
-        mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32)).cuda()
-        std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).cuda()
+        mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32)).cuda(gpu_id)
+        std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).cuda(gpu_id)
         dx = deltas[:, 0] * std[0] + mean[0]
         dy = deltas[:, 1] * std[1] + mean[1]
         dw = deltas[:, 2] * std[2] + mean[2]
@@ -211,5 +214,65 @@ class RetinaNetOperator(BaseOperator):
         pred = torch.stack([pred_x, pred_y, pred_w, pred_h, cls_prob, cls.float()]).t()
         return pred
 
+    @staticmethod
+    def update_keys(dict):
+        new = {}
+        for k in dict.keys():
+            new['module.'+k] = dict[k]
+
+        return new
+    @staticmethod
+    def save_result(file_path, pred_bbox):
+        pred_bbox = torch.clamp(pred_bbox, min=0.)
+        with open(file_path, 'w') as f:
+            for i in range(pred_bbox.size()[0]):
+                bbox = pred_bbox[i]
+                line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
+                    int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]),
+                    float(bbox[4]), int(bbox[5])
+                )
+                f.write(line)
+
     def evaluation_process(self):
-        pass
+        import os
+        import time
+        self.model.eval()
+        state_dict = torch.load(self.cfg.Val.model_path)
+        state_dict = self.update_keys(state_dict)
+        self.model.load_state_dict(state_dict)
+        epoch = 0
+        step = 0
+
+        self.validation_loader.sampler.set_epoch(epoch)
+        st = time.time()
+
+        for data in self.validation_loader:
+            step += 1
+            imgs, annos, names = data
+            imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
+
+            img_size = (imgs.size()[2], imgs.size()[3])
+            self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
+                self.make_anchor(img_size)
+
+            outs = self.model(imgs)
+            pred_bbox = self.transform_bbox(outs[1][0], outs[0][0], gpu_id=self.cfg.Distributed.gpu_id).cpu()
+
+            # NMS
+            nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
+            nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
+            nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
+            keep_idx = nms(nms_bbox, thresh=0.3, gpu=True)
+            pred_bbox = pred_bbox[keep_idx]
+
+            file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
+            self.save_result(file_path, pred_bbox)
+
+            del imgs
+            del outs
+            del pred_bbox
+            torch.cuda.empty_cache()
+            if self.main_proc_flag:
+                print('Step : %d / %d' % (step, len(self.validation_loader)))
+        print('Done !!!')
+        print('Using %f' % (time.time() - st))

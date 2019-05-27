@@ -9,6 +9,7 @@ class BaseOperator(object):
     """
     This is the parent class of all the models' operator.
     """
+
     def __init__(self, cfg, model, lr_sch=None):
         """
         :param cfg: Configuration object.
@@ -21,9 +22,7 @@ class BaseOperator(object):
         random.seed(cfg.seed)
         torch.manual_seed(cfg.seed)
         torch.cuda.manual_seed(cfg.seed)
-
         self.model = DistributedDataParallel(model, device_ids=[self.cfg.Distributed.gpu_id])
-
         self.lr_sch = lr_sch
 
     def criterion(self, outs, labels):

@@ -16,11 +16,11 @@ class NASFPNOperator(object):
     def __init__(self, cfg):
         self.cfg = cfg
 
-        model = NASRetinaNet(cfg).cuda()
-        controller = Controller(cfg).cuda()
+        self.supernet = NASRetinaNet(cfg).cuda()
+        self.controller = Controller(cfg).cuda()
 
-        self.supernet_optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
-        self.controller_optimizer = optim.Adam(controller.parameters(), lr=cfg.Train.lr)
+        self.supernet_optimizer = optim.Adam(self.supernet.parameters(), lr=cfg.Train.lr)
+        self.controller_optimizer = optim.Adam(self.controller.parameters(), lr=cfg.Train.lr)
 
         self.supernet_loader, self.controller_loader, self.validation_loader = make_nas_dataloader(cfg)
 
@@ -110,105 +110,94 @@ class NASFPNOperator(object):
         return sum(cls_losses) / bs_num, sum(reg_losses) / bs_num
 
     def training_process(self):
-        if self.main_proc_flag:
-            logger = Logger(self.cfg)
+        logger = Logger(self.cfg)
+        total_sn_step = 0
+        total_ctl_step = 0
 
-        self.model.train()
+        for epoch in range(self.cfg.Train.epoch):
+            self.supernet.train()
+            self.controller.eval()
 
-        total_loss = 0
-        total_cls_loss = 0
-        total_loc_loss = 0
+            total_sn_loss = 0
 
-        epoch = 0
-        self.training_loader.sampler.set_epoch(epoch)
-        training_loader = iter(self.training_loader)
+            print("=> Epoch: {}".format(epoch))
+            # Train super net.
+            print("=> Training SuperNet...")
+            for step, (imgs, annos) in enumerate(self.supernet_loader):
+                self.supernet_optimizer.zero_grad()
+                imgs = imgs.cuda()
+                annos = annos.cuda()
 
-        for step in range(self.cfg.Train.iter_num):
-            self.lr_sch.step()
-            self.optimizer.zero_grad()
+                p_seq, l_seq, _, _ = self.controller()
 
-            try:
-                imgs, annos = next(training_loader)
-            except StopIteration:
-                epoch += 1
-                self.training_loader.sampler.set_epoch(epoch)
-                training_loader = iter(self.training_loader)
-                imgs, annos = next(training_loader)
-            imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
-            annos = annos.cuda(self.cfg.Distributed.gpu_id)
-            outs = self.model(imgs)
-            cls_loss, loc_loss = self.criterion(outs, annos.clone())
-            loss = cls_loss + loc_loss
-            loss.backward()
-            self.optimizer.step()
+                outs = self.supernet(imgs, p_seq, l_seq)
+                cls_loss, loc_loss = self.criterion(outs, annos.clone())
+                loss = cls_loss + loc_loss
+                loss.backward()
+                self.supernet_optimizer.step()
 
-            total_loss += loss.item()
-            total_cls_loss += cls_loss.item()
-            total_loc_loss += loc_loss.item()
+                total_sn_loss += loss.item()
 
-            if self.main_proc_flag:
                 if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
                     # Loss
                     log_data = {'scalar': {
-                        'train/total_loss': total_loss / self.cfg.Train.print_interval,
-                        'train/cls_loss': total_cls_loss / self.cfg.Train.print_interval,
-                        'train/loc_loss': total_loc_loss / self.cfg.Train.print_interval,
+                        'train/total_loss': total_sn_loss / self.cfg.Train.print_interval
                     }}
+                    logger.log(log_data, total_sn_step)
+                    total_sn_loss = 0
+                total_sn_step += 1
 
-                    img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                    pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
-                    vis_img = visualize(img, pred_bbox)
-                    vis_gt_img = visualize(img, annos[0])
-                    vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                    vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+            print("=> Training Controller...")
+            self.supernet.eval()
+            self.controller.train()
 
-                    log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
+            total_ctl_loss = 0
+            total_ctl_reward = 0
 
-                    logger.log(log_data, step)
+            controller_loader = iter(self.controller_loader)
+            for step in range(300):
+                try:
+                    imgs, annos = next(controller_loader)
+                except:
+                    controller_loader = iter(self.controller_loader)
+                    imgs, annos = next(controller_loader)
 
-                    total_loss = 0
-                    total_cls_loss = 0
-                    total_loc_loss = 0
+                imgs = imgs.cuda()
+                annos = annos.cuda()
 
-                if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
-                        step == self.cfg.Train.iter_num - 1:
-                    self.save_ckp(self.model.module, step, logger.log_dir)
+                self.controller_optimizer.zero_grad()
 
-    def transform_bbox(self, cls_pred, loc_pred):
-        """
-        Transform prediction class and location into bbox coordinate.
-        :param cls_pred: (AnchorN, ClassN)
-        :param loc_pred: (AnchorsN, 4)
-        :return: BBox, (N, 8)
-        """
-        cls_pred = cls_pred.sigmoid()
-        cls_pred_prob, cls_pred_idx = cls_pred.max(dim=1)
-        object_idx = cls_pred_prob > 0.1
-        cls_prob = cls_pred_prob[object_idx]
-        cls = cls_pred_idx[object_idx] + 1
-        boxes = self.anchors[object_idx, :]
-        deltas = loc_pred[object_idx, :]
-        widths = boxes[:, 2] - boxes[:, 0]
-        heights = boxes[:, 3] - boxes[:, 1]
-        ctr_x = boxes[:, 0] + 0.5 * widths
-        ctr_y = boxes[:, 1] + 0.5 * heights
-        mean = torch.from_numpy(np.array([0, 0, 0, 0]).astype(np.float32)).cuda()
-        std = torch.from_numpy(np.array([0.1, 0.1, 0.2, 0.2]).astype(np.float32)).cuda()
-        dx = deltas[:, 0] * std[0] + mean[0]
-        dy = deltas[:, 1] * std[1] + mean[1]
-        dw = deltas[:, 2] * std[2] + mean[2]
-        dh = deltas[:, 3] * std[3] + mean[3]
+                p_seq, l_seq, entropy, log_prob = self.controller()
 
-        pred_ctr_x = ctr_x + dx * widths
-        pred_ctr_y = ctr_y + dy * heights
-        pred_w = torch.exp(dw) * widths
-        pred_h = torch.exp(dh) * heights
+                with torch.no_grad():
+                    outs = self.supernet(imgs, p_seq, l_seq)
 
-        pred_x = pred_ctr_x - 0.5 * pred_w
-        pred_y = pred_ctr_y - 0.5 * pred_h
+                    reward = (logits.squeeze().max(dim=1)[1] == target).float().sum() / data.size(0)
 
-        pred = torch.stack([pred_x, pred_y, pred_w, pred_h, cls_prob, cls.float()]).t()
-        return pred
+                if self.cfg.entropy_weight is not None:
+                    reward += self.cfg.entropy_weight * entropy
+
+                if baseline is None:
+                    baseline = reward
+                baseline -= (1 - self.cfg.baseline_decrease) * (baseline - reward)
+
+                loss = log_prob * (reward.detach() - baseline)
+                loss = loss.sum()
+
+                loss.backward()
+                self.controller_optimizer.step()
+
+                total_ctl_loss += loss.item()
+                total_ctl_reward += reward.item()
+
+                if step % self.cfg.log_interval == self.cfg.log_interval - 1:
+                    log_loss = total_ctl_loss / self.cfg.log_interval
+                    log_reward = total_ctl_reward / self.cfg.log_interval
+                    print("   CTL Train Loss: {:.4} | CTL Train Reward.: {:.4}".format(log_loss, log_reward))
+                    tboard.add_scalar('ctl/loss', float(log_loss), total_ctl_step)
+                    tboard.add_scalar('ctl/reward', float(log_reward), total_ctl_step)
+                    total_ctl_loss, total_ctl_reward = 0, 0
+                total_ctl_step += 1
 
     def evaluation_process(self):
         pass

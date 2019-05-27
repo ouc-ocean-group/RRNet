@@ -6,12 +6,12 @@ from utils.model_tools import get_backbone, get_fpn, get_detector
 class RetinaNet(nn.Module):
     def __init__(self, cfg):
         super(RetinaNet, self).__init__()
-        self.num_anchors = cfg.num_anchors
+        self.num_anchors = cfg.Model.num_anchors
         self.num_classes = cfg.num_classes
-        self.backbone = get_backbone(cfg.backbone, cfg.pretrained)
-        self.fpn = get_fpn(cfg.fpn)
-        self.cls = get_detector(cfg.cls_detector, self.num_anchors * self.num_classes)
-        self.loc = get_detector(cfg.loc_detector, self.num_anchors * 4)
+        self.backbone = get_backbone(cfg.Model.backbone, cfg.Train.pretrained)
+        self.fpn = get_fpn(cfg.Model.fpn)
+        self.cls = get_detector(cfg.Model.cls_detector, self.num_anchors * self.num_classes)
+        self.loc = get_detector(cfg.Model.loc_detector, self.num_anchors * 4)
 
     def forward(self, input):
         loc_pres = []
@@ -27,7 +27,9 @@ class RetinaNet(nn.Module):
             cls_pre = cls_pre.permute(0, 2, 3, 1).contiguous().view(input.size(0), -1, self.num_classes)
             loc_pres.append(loc_pre)
             cls_pres.append(cls_pre)
-        return torch.cat(loc_pres, 1), torch.cat(cls_pres, 1)
+        loc_pre = torch.cat(loc_pres, 1)
+        cls_pre = torch.cat(cls_pres, 1)
+        return loc_pre, cls_pre
 
 
 def build_net(cfg):

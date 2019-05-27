@@ -1,7 +1,5 @@
 import os
-import zipfile
-import shutil
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.utils as vutils
@@ -9,12 +7,18 @@ from .timer import Timer
 
 
 class Logger(object):
-    def __init__(self, log_dir, iter_num, use_tensorboard=True):
-        self.log_dir = self.create_log_dir(log_dir)
-        self.tensorboard = SummaryWriter(self.log_dir) if use_tensorboard else None
+    def __init__(self, cfg, main_process_flag=True):
+        """
+        :param cfg: Configuration
+        :param main_process_flag: if this is a logger for main process.
+        """
+        self.main_process_flag = main_process_flag
+        if main_process_flag:
+            self.log_dir = self.create_log_dir(cfg.log_prefix)
+            self.tensorboard = SummaryWriter(self.log_dir) if cfg.use_tensorboard else None
         self.timer = Timer()
-        self.total_iter_num = iter_num
-        self.init_timer(iter_num)
+        self.total_iter_num = cfg.Train.iter_num
+        self.init_timer(cfg.Train.iter_num)
 
     def init_timer(self, iter_length):
         self.timer.start(iter_length)
@@ -27,7 +31,7 @@ class Logger(object):
 
     def write_log_file(self, text):
         with open(os.path.join(self.log_dir, 'log.txt'), 'a+') as writer:
-            writer.write(text)
+            writer.write(text+'\n')
 
     def log(self, data, n_iter):
         """
@@ -37,46 +41,38 @@ class Logger(object):
         :param n_iter: current training step.
         :return: None
         """
-        log_str = "{} Iter. {}/{} | ".format(self.timer.stamp(n_iter), n_iter, self.total_iter_num)
-        for k, v in data['scalar'].items():
-            log_str += "{}: {:.4} ".format(k, float(v))
-            self.add_scalar(float(v), tag=k, n_iter=n_iter)
-        self.write_log_file(log_str)
-        print(log_str)
+        if self.main_process_flag:
+            log_str = "{} Iter. {}/{} | ".format(self.timer.stamp(n_iter), n_iter, self.total_iter_num)
+            for k, v in data['scalar'].items():
+                log_str += "{}: {:.4} ".format(k, float(v))
+                self.add_scalar(float(v), tag=k, n_iter=n_iter)
+            self.write_log_file(log_str)
+            print(log_str)
 
-        if 'imgs' in data:
-            for k, v in data['imgs'].items():
-                vis_img = torch.cat(v, dim=0)
-                vis_img = vutils.make_grid(vis_img, normalize=True, scale_each=True)
-                self.add_img(vis_img, tag=k, n_iter=n_iter)
+            if 'imgs' in data:
+                for k, v in data['imgs'].items():
+                    vis_img = torch.cat(v, dim=0)
+                    vis_img = vutils.make_grid(vis_img, normalize=True, scale_each=True)
+                    self.add_img(vis_img, tag=k, n_iter=n_iter)
 
-    def create_log_dir(self, log_dir):
-        """
-        Make log dir.
-        :param log_dir: Path
-        :return: True log path.
-        """
-        if log_dir is not None:
-            if os.path.isdir(log_dir):
-                self.zip_dir(log_dir)
-                shutil.rmtree(log_dir)
-        else:
-            log_dir = os.path.join('./log/{}'.format(datetime.now().isoformat(timespec='seconds')))
-        os.makedirs(log_dir)
-        return log_dir
+    def print(self, data):
+        if self.main_process_flag:
+            print(data)
+            self.write_log_file(data)
 
     @staticmethod
-    def zip_dir(dir_path):
-        tmp_path = dir_path.split('/')
-        out_file_name = os.path.join(
-            *tmp_path[:-1], tmp_path[-1] + '-{}.zip'.format(datetime.now().isoformat(timespec='seconds')))
-        zip_archive = zipfile.ZipFile(out_file_name, "w", zipfile.ZIP_DEFLATED)
-        for p, d, fs in os.walk(dir_path):
-            fpath = p.replace(dir_path, '')
-            for f in fs:
-                zip_archive.write(os.path.join(p, f), os.path.join(fpath, f))
-        zip_archive.close()
-
+    def create_log_dir(log_prefix):
+        """
+        Make log dir.
+        :param log_prefix: Prefix of the log dir.
+        :return: True log path.
+        """
+        utc_time = datetime.utcnow()
+        tz_cn = timezone(timedelta(hours=8))
+        local_datetime = utc_time.astimezone(tz_cn)
+        log_dir = os.path.join('./log/{}-{}'.format(log_prefix, local_datetime.isoformat(timespec='seconds')))
+        os.makedirs(log_dir)
+        return log_dir
 
 # if __name__ == '__main__':
 #     import torch

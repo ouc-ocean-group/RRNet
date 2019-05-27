@@ -54,7 +54,7 @@ class DronesDET(Dataset):
         imgs, annos = [], torch.zeros(len(batch), max_n, 8)
         for i, batch_data in enumerate(batch):
             imgs.append(batch_data[0].unsqueeze(0))
-            annos[i, :batch_data[1].size(0), :] = batch_data[1]
+            annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
         imgs = torch.cat(imgs)
         return imgs, annos
 
@@ -69,6 +69,7 @@ class DronesDET(Dataset):
         regs = []
         inds = []
         reg_masks = []
+        annos = torch.zeros(len(batch), max_n, 8)
         trans = TransToHM()
 
         for i, batch_data in enumerate(batch):
@@ -80,6 +81,7 @@ class DronesDET(Dataset):
             inds.append(ind)
             regs.append(reg)
             reg_masks.append(reg_mask)
+            annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
 
         imgs = torch.cat(imgs)
         hms = torch.stack(hms)
@@ -88,5 +90,5 @@ class DronesDET(Dataset):
         regs = torch.stack(regs)
         reg_masks = torch.stack(reg_masks)
         # annos = hms, whs, regs, inds, reg_masks
-        return imgs, hms, whs, regs, inds, reg_masks
+        return imgs, hms, whs, regs, inds, reg_masks, annos
 

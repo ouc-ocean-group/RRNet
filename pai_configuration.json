@@ -1,0 +1,22 @@
+{
+    "jobName": "ctnet_26719919",
+    "image": "192.168.193.253:5000/pytorch",
+    "authFile": "",
+    "dataDir": "$PAI_DEFAULT_FS_URI/data/datasets/cityscapes.tar",
+    "outputDir": "",
+    "codeDir": "$PAI_DEFAULT_FS_URI/Users/$PAI_USER_NAME/$PAI_USER_NAME~$PAI_JOB_NAME",
+    "virtualCluster": "default",
+    "gpuType": "geforce2080tix4",
+    "retryCount": 0,
+    "taskRoles": [
+        {
+            "name": "task",
+            "taskNumber": 1,
+            "cpuNumber": 30,
+            "memoryMB": 30000,
+            "shmMB": 2048,
+            "gpuNumber": 4,
+            "command": "cd $PAI_JOB_NAME && bash setup.sh"
+        }
+    ]
+}

@@ -32,7 +32,6 @@ class SharedDefromConv(nn.Module):
     def _get_offset_mask(outs):
         offs = []
         masks = []
-
         o1, o2, mask = torch.chunk(outs[0], 3, dim=1)
         offset = torch.cat((o1, o2), dim=1)
         mask = torch.sigmoid(mask)

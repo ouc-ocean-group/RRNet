@@ -26,7 +26,7 @@ class RetinaNetOperator(BaseOperator):
 
         super(RetinaNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        self.anchor_maker = Anchors(sizes=(16, 64, 128))
+        self.anchor_maker = Anchors(sizes=(20, 48, 100))
 
         self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
             self.make_anchor(cfg.Train.crop_size)
@@ -212,13 +212,6 @@ class RetinaNetOperator(BaseOperator):
         return pred
 
     @staticmethod
-    def update_keys(data):
-        new = {}
-        for k in data.keys():
-            new['module.' + k] = data[k]
-        return new
-
-    @staticmethod
     def save_result(file_path, pred_bbox):
         pred_bbox = torch.clamp(pred_bbox, min=0.)
         with open(file_path, 'w') as f:
@@ -234,43 +227,43 @@ class RetinaNetOperator(BaseOperator):
         import os
         import time
         self.model.eval()
+
         state_dict = torch.load(self.cfg.Val.model_path)
-        state_dict = self.update_keys(state_dict)
-        self.model.load_state_dict(state_dict)
+        self.model.module.load_state_dict(state_dict)
         epoch = 0
         step = 0
 
         self.validation_loader.sampler.set_epoch(epoch)
         st = time.time()
 
-        for data in self.validation_loader:
-            step += 1
-            imgs, annos, names = data
-            imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
+        with torch.no_grad():
+            for data in self.validation_loader:
+                step += 1
+                imgs, annos, names = data
+                imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
 
-            img_size = (imgs.size()[2], imgs.size()[3])
-            self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
-                self.make_anchor(img_size)
+                img_size = (imgs.size()[2], imgs.size()[3])
+                self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
+                    self.make_anchor(img_size)
 
-            outs = self.model(imgs)
-            pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+                outs = self.model(imgs)
+                pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
 
-            # NMS
-            nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
-            nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
-            nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
-            keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
-            pred_bbox = pred_bbox[keep_idx]
+                # NMS
+                nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
+                nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
+                nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
+                keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
+                pred_bbox = pred_bbox[keep_idx]
 
-            file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
-            self.save_result(file_path, pred_bbox)
+                file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
+                self.save_result(file_path, pred_bbox)
 
-            del imgs
-            del outs
-            del pred_bbox
-            torch.cuda.empty_cache()
-            if self.main_proc_flag:
-                print('Step : %d / %d' % (step, len(self.validation_loader)))
-        print('Done !!!')
-        print('Using %f' % (time.time() - st))
+                del imgs
+                del outs
+                del pred_bbox
+                if self.main_proc_flag:
+                    print('Step : %d / %d' % (step, len(self.validation_loader)))
+            print('Done !!!')
+            print('Using %f' % (time.time() - st))
 

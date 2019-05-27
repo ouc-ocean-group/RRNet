@@ -5,8 +5,8 @@
 # Written by Navaneeth Bodla and Bharat Singh
 # ----------------------------------------------------------
 
-from ext.nms.gpu_nms import gpu_nms
-from ext.nms.cpu_nms import cpu_nms, cpu_soft_nms
+from ext.nms.nms.gpu_nms import gpu_nms
+from ext.nms.nms.cpu_nms import cpu_nms, cpu_soft_nms
 import numpy as np
 
 

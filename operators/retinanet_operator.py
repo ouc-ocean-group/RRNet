@@ -259,7 +259,7 @@ class RetinaNetOperator(BaseOperator):
             nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
             nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
             nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
-            keep_idx = nms(nms_bbox, thresh=0.3, gpu=True)
+            keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
             pred_bbox = pred_bbox[keep_idx]
 
             file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')

@@ -7,9 +7,15 @@ from .timer import Timer
 
 
 class Logger(object):
-    def __init__(self, cfg):
-        self.log_dir = self.create_log_dir(cfg.log_prefix)
-        self.tensorboard = SummaryWriter(self.log_dir) if cfg.use_tensorboard else None
+    def __init__(self, cfg, main_process_flag=True):
+        """
+        :param cfg: Configuration
+        :param main_process_flag: if this is a logger for main process.
+        """
+        self.main_process_flag = main_process_flag
+        if main_process_flag:
+            self.log_dir = self.create_log_dir(cfg.log_prefix)
+            self.tensorboard = SummaryWriter(self.log_dir) if cfg.use_tensorboard else None
         self.timer = Timer()
         self.total_iter_num = cfg.Train.iter_num
         self.init_timer(cfg.Train.iter_num)
@@ -35,18 +41,24 @@ class Logger(object):
         :param n_iter: current training step.
         :return: None
         """
-        log_str = "{} Iter. {}/{} | ".format(self.timer.stamp(n_iter), n_iter, self.total_iter_num)
-        for k, v in data['scalar'].items():
-            log_str += "{}: {:.4} ".format(k, float(v))
-            self.add_scalar(float(v), tag=k, n_iter=n_iter)
-        self.write_log_file(log_str)
-        print(log_str)
+        if self.main_process_flag:
+            log_str = "{} Iter. {}/{} | ".format(self.timer.stamp(n_iter), n_iter, self.total_iter_num)
+            for k, v in data['scalar'].items():
+                log_str += "{}: {:.4} ".format(k, float(v))
+                self.add_scalar(float(v), tag=k, n_iter=n_iter)
+            self.write_log_file(log_str)
+            print(log_str)
 
-        if 'imgs' in data:
-            for k, v in data['imgs'].items():
-                vis_img = torch.cat(v, dim=0)
-                vis_img = vutils.make_grid(vis_img, normalize=True, scale_each=True)
-                self.add_img(vis_img, tag=k, n_iter=n_iter)
+            if 'imgs' in data:
+                for k, v in data['imgs'].items():
+                    vis_img = torch.cat(v, dim=0)
+                    vis_img = vutils.make_grid(vis_img, normalize=True, scale_each=True)
+                    self.add_img(vis_img, tag=k, n_iter=n_iter)
+
+    def print(self, data):
+        if self.main_process_flag:
+            print(data)
+            self.write_log_file(data)
 
     @staticmethod
     def create_log_dir(log_prefix):

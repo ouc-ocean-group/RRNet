@@ -48,4 +48,4 @@ def make_nas_dataloader(cfg):
     val_loader = DataLoader(val_dataset,
                             batch_size=cfg.Val.batch_size, num_workers=cfg.Val.num_workers,
                             pin_memory=True, collate_fn=val_dataset.collate_fn)
-    return supernet_sampler, controller_sampler, val_loader
+    return supernet_loader, controller_loader, val_loader

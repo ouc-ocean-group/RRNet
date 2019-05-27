@@ -17,7 +17,7 @@ class Controller(torch.nn.Module):
         self.tanh_constant = cfg.NAS.controller_tanh_constant
 
         # Operation embedding and the init input embedding
-        self.embedding = [nn.Embedding(self.layers_num+1, self.lstm_size) for _ in range(self.path_num)]
+        self.embedding = [nn.Embedding(self.layers_num+1, self.lstm_size).cuda() for _ in range(self.path_num)]
 
         self.path_lstm = []
         self.path_w_attn_1 = []

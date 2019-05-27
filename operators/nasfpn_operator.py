@@ -113,8 +113,8 @@ class NASFPNOperator(object):
         logger = Logger(self.cfg)
         total_sn_step = 0
         total_ctl_step = 0
-
-        for epoch in range(self.cfg.Train.epoch):
+        baseline = None
+        for epoch in range(self.cfg.NAS.epoch):
             self.supernet.train()
             self.controller.eval()
 
@@ -139,7 +139,6 @@ class NASFPNOperator(object):
                 total_sn_loss += loss.item()
 
                 if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
-                    # Loss
                     log_data = {'scalar': {
                         'train/total_loss': total_sn_loss / self.cfg.Train.print_interval
                     }}
@@ -161,9 +160,7 @@ class NASFPNOperator(object):
                 except:
                     controller_loader = iter(self.controller_loader)
                     imgs, annos = next(controller_loader)
-
-                imgs = imgs.cuda()
-                annos = annos.cuda()
+                imgs, annos = imgs.cuda(), annos.cuda()
 
                 self.controller_optimizer.zero_grad()
 
@@ -171,15 +168,15 @@ class NASFPNOperator(object):
 
                 with torch.no_grad():
                     outs = self.supernet(imgs, p_seq, l_seq)
+                    cls_loss, loc_loss = self.criterion(outs, annos.clone())
+                    reward = (-1 * (cls_loss + loc_loss)).exp()
 
-                    reward = (logits.squeeze().max(dim=1)[1] == target).float().sum() / data.size(0)
-
-                if self.cfg.entropy_weight is not None:
-                    reward += self.cfg.entropy_weight * entropy
+                if self.cfg.NAS.entropy_weight is not None:
+                    reward += self.cfg.NAS.entropy_weight * entropy
 
                 if baseline is None:
                     baseline = reward
-                baseline -= (1 - self.cfg.baseline_decrease) * (baseline - reward)
+                baseline -= (1 - self.cfg.NAS.baseline_decrease) * (baseline - reward)
 
                 loss = log_prob * (reward.detach() - baseline)
                 loss = loss.sum()
@@ -190,12 +187,12 @@ class NASFPNOperator(object):
                 total_ctl_loss += loss.item()
                 total_ctl_reward += reward.item()
 
-                if step % self.cfg.log_interval == self.cfg.log_interval - 1:
-                    log_loss = total_ctl_loss / self.cfg.log_interval
-                    log_reward = total_ctl_reward / self.cfg.log_interval
-                    print("   CTL Train Loss: {:.4} | CTL Train Reward.: {:.4}".format(log_loss, log_reward))
-                    tboard.add_scalar('ctl/loss', float(log_loss), total_ctl_step)
-                    tboard.add_scalar('ctl/reward', float(log_reward), total_ctl_step)
+                if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
+                    log_data = {'scalar': {
+                        'train/total_ctl_loss': total_ctl_loss / self.cfg.Train.print_interval,
+                        'train/total_ctl_reward': total_ctl_reward / self.cfg.Train.print_interval
+                    }}
+                    logger.log(log_data, total_ctl_step)
                     total_ctl_loss, total_ctl_reward = 0, 0
                 total_ctl_step += 1
 

@@ -14,12 +14,15 @@ Config.num_classes = 10
 
 # NAS Config ==============================================
 Config.NAS = edict()
+Config.NAS.epoch = 50
 Config.NAS.ss_num = 7
 Config.NAS.path_num = 3
 
 Config.NAS.lstm_size = 64
 Config.NAS.temperature = 0.5
 Config.NAS.controller_tanh_constant = 0.2
+Config.NAS.entropy_weight = 0.0001
+Config.NAS.baseline_decrease = 0.99
 
 Config.NAS.fpn_inplane = 256
 
@@ -27,7 +30,6 @@ Config.NAS.fpn_inplane = 256
 Config.Train = edict()
 # If use the pretrained backbone model.
 Config.Train.pretrained = True
-
 # Dataloader params.
 Config.Train.batch_size = 8
 Config.Train.num_workers = 4

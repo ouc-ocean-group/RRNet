@@ -13,11 +13,11 @@ class NASRetinaNet(nn.Module):
         self.cls = get_detector(cfg.Model.cls_detector, self.num_anchors * self.num_classes)
         self.loc = get_detector(cfg.Model.loc_detector, self.num_anchors * 4)
 
-    def forward(self, input):
+    def forward(self, input, p_seq, l_seq):
         loc_pres = []
         cls_pres = []
         l1, l2, l3, l4 = self.backbone(input)
-        fms = self.fpn(l2, l3, l4)
+        fms = self.fpn((l2, l3, l4), p_seq, l_seq)
         for fm in fms:
             loc_pre = self.loc(fm)
             cls_pre = self.cls(fm)
@@ -33,4 +33,4 @@ class NASRetinaNet(nn.Module):
 
 
 def build_net(cfg):
-    return RetinaNet(cfg)
+    return NASRetinaNet(cfg)

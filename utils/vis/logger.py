@@ -21,7 +21,11 @@ class Logger(object):
         self.init_timer(cfg.Train.iter_num)
 
     def init_timer(self, iter_length):
+        self.total_iter_num = iter_length
         self.timer.start(iter_length)
+
+    def stamp_timer(self, step):
+        self.timer.stamp(step)
 
     def add_scalar(self, data, tag, n_iter):
         self.tensorboard.add_scalar(tag, float(data), n_iter)

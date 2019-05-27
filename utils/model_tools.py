@@ -3,25 +3,20 @@ from modules.fpn import FPN
 from detectors.retinanet_detector import RetinaNetDetector
 from backbones.trident import trident_res50v2, trident_res50v2_deform, trident_res101v2, trident_res101v2_deform
 
-def get_trident(backbone, deform):
-    if backbone == 'trires50':
-        if deform:
-            return trident_res50v2_deform()
-        else:
-            return trident_res50v2()
-    elif backbone == 'trires101':
-        if deform:
-            return trident_res101v2_deform()
-        else:
-            return trident_res101v2()
-    else:
-        return trident_res50v2()
 
 def get_backbone(backbone, pretrained=False):
     if backbone == 'resnet50':
         return resnet50(pretrained=pretrained)
     elif backbone == 'resnet101':
         return resnet101(pretrained=pretrained)
+    elif backbone == 'trires50':
+        return trident_res50v2()
+    elif backbone == 'trires50deform':
+        return trident_res50v2_deform()
+    elif backbone == 'trires101':
+        return trident_res101v2()
+    elif backbone == 'trires101deform':
+        return trident_res101v2_deform()
     else:
         return resnet50(pretrained=pretrained)
 

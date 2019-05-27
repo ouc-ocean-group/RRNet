@@ -20,9 +20,9 @@ def make_dataloader(cfg):
                               shuffle=True if cfg.Train.sampler is None else False)
     val_loader = DataLoader(val_dataset,
                             batch_size=cfg.Val.batch_size, num_workers=cfg.Val.num_workers,
-                            sampler=cfg.Val.sampler(val_dataset) if cfg.Train.sampler else None,
+                            sampler=cfg.Val.sampler(val_dataset) if cfg.Val.sampler else None,
                             pin_memory=True, collate_fn=val_dataset.collate_fn,
-                            shuffle=True if cfg.Train.sampler is None else False)
+                            shuffle=True if cfg.Val.sampler is None else False)
     return train_loader, val_loader
 
 

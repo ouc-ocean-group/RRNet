@@ -1,4 +1,3 @@
-from operators.distributed_wrapper import DistributedWrapper
 
 # ==== import your configuration here ===
 from configs.nas_retinanet_config import Config
@@ -7,6 +6,6 @@ from operators.nasfpn_operator import NASFPNOperator
 
 
 if __name__ == "__main__":
-    dis_operator = DistributedWrapper(Config, NASFPNOperator)
-    dis_operator.train()
+    operator = NASFPNOperator(Config)
+    operator.training_process()
     print("Searching is Done!")

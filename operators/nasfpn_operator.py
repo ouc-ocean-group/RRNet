@@ -7,9 +7,6 @@ from utils.vis.logger import Logger
 from modules.loss.focalloss import FocalLoss
 from modules.anchor import Anchors
 from utils.metrics.metrics import bbox_iou
-from datasets.transforms.functional import denormalize
-from utils.vis.annotations import visualize
-import numpy as np
 
 
 class NASFPNOperator(object):
@@ -31,7 +28,7 @@ class NASFPNOperator(object):
 
         self.focal_loss = FocalLoss()
 
-        self.main_proc_flag = cfg.Distributed.gpu_id == 0
+        self.main_proc_flag = True
 
     def make_anchor(self, size):
         anchors = self.anchor_maker(size).cuda()
@@ -110,7 +107,7 @@ class NASFPNOperator(object):
         return sum(cls_losses) / bs_num, sum(reg_losses) / bs_num
 
     def training_process(self):
-        logger = Logger(self.cfg)
+        logger = Logger(self.cfg, self.main_proc_flag)
         total_sn_step = 0
         total_ctl_step = 0
         baseline = None
@@ -119,11 +116,11 @@ class NASFPNOperator(object):
             self.controller.eval()
 
             total_sn_loss = 0
-
-            print("=> Epoch: {}".format(epoch))
+            logger.print("=> Epoch: {}".format(epoch))
+            logger.print("=> Training SuperNet...")
             # Train super net.
-            print("=> Training SuperNet...")
-            for step, (imgs, annos) in enumerate(self.supernet_loader):
+            logger.init_timer(len(self.supernet_loader))
+            for step, (imgs, annos, _) in enumerate(self.supernet_loader):
                 self.supernet_optimizer.zero_grad()
                 imgs = imgs.cuda()
                 annos = annos.cuda()
@@ -146,7 +143,7 @@ class NASFPNOperator(object):
                     total_sn_loss = 0
                 total_sn_step += 1
 
-            print("=> Training Controller...")
+            logger.print("=> Training Controller...")
             self.supernet.eval()
             self.controller.train()
 
@@ -154,12 +151,13 @@ class NASFPNOperator(object):
             total_ctl_reward = 0
 
             controller_loader = iter(self.controller_loader)
+            logger.init_timer(300)
             for step in range(300):
                 try:
-                    imgs, annos = next(controller_loader)
+                    imgs, annos, _ = next(controller_loader)
                 except:
                     controller_loader = iter(self.controller_loader)
-                    imgs, annos = next(controller_loader)
+                    imgs, annos, _ = next(controller_loader)
                 imgs, annos = imgs.cuda(), annos.cuda()
 
                 self.controller_optimizer.zero_grad()
@@ -176,7 +174,7 @@ class NASFPNOperator(object):
 
                 if baseline is None:
                     baseline = reward
-                baseline -= (1 - self.cfg.NAS.baseline_decrease) * (baseline - reward)
+                baseline -= (1 - self.cfg.NAS.baseline_decrease) * (baseline.item() - reward.item())
 
                 loss = log_prob * (reward.detach() - baseline)
                 loss = loss.sum()
@@ -196,5 +194,29 @@ class NASFPNOperator(object):
                     total_ctl_loss, total_ctl_reward = 0, 0
                 total_ctl_step += 1
 
-    def evaluation_process(self):
-        pass
+            logger.print("=> Validation...")
+            self.supernet.eval()
+            self.controller.eval()
+            validation_loader = iter(self.validation_loader)
+            for i in range(10):
+                try:
+                    imgs, annos, _ = next(validation_loader)
+                except:
+                    validation_loader = iter(self.validation_loader)
+                    imgs, annos, _ = next(validation_loader)
+                imgs, annos = imgs.cuda(), annos.cuda()
+
+                self.controller_optimizer.zero_grad()
+
+                p_seq, l_seq, entropy, log_prob = self.controller()
+
+                with torch.no_grad():
+                    outs = self.supernet(imgs, p_seq, l_seq)
+                    cls_loss, loc_loss = self.criterion(outs, annos.clone())
+                    reward = (-1 * (cls_loss + loc_loss)).exp()
+
+                logger.print("   PArch: {}".format(str(p_seq.cpu().numpy())))
+                logger.print("   LArch: {}".format(str(l_seq.cpu().numpy())))
+                logger.print("   Reward: {:.6}".format(float(reward)))
+                logger.print("-----------------------------------------------")
+

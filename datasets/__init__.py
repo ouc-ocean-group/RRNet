@@ -32,9 +32,9 @@ def make_nas_dataloader(cfg):
 
     train_dataset = datasets[cfg.dataset](root_dir=cfg.data_root, transforms=cfg.Train.transforms, split='train')
     val_dataset = datasets[cfg.dataset](root_dir=cfg.data_root, transforms=cfg.Val.transforms, split='val')
-    half_num = len(train_dataset)
+    half_num = int(len(train_dataset) / 2)
     supernet_sampler = SubsetRandomSampler(range(half_num))
-    controller_sampler = SubsetRandomSampler(range(half_num, 2 * half_num))
+    controller_sampler = SubsetRandomSampler(range(half_num, len(train_dataset)))
 
     supernet_loader = DataLoader(train_dataset,
                                  batch_size=cfg.Train.batch_size, num_workers=cfg.Train.num_workers,

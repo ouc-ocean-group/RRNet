@@ -3,17 +3,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+class ConvBNRelu(nn.Module):
+    def __init__(self, inplane, plane, kernel_size=3, padding=1):
+        super(ConvBNRelu, self).__init__()
+        self.layer = nn.Sequential(
+            nn.Conv2d(inplane, plane, kernel_size, 1, padding),
+            nn.BatchNorm2d(plane),
+            nn.ReLU()
+        )
+
+    def forward(self, x):
+        return self.layer(x)
+
+
 class SwapCell(nn.Module):
     def __init__(self, layer_idx, path_idx, inplane=256):
         super(SwapCell, self).__init__()
         self.layer_idx = layer_idx
         self.path_idx = path_idx
-
-        self.swap_layer = nn.Sequential(
-            nn.Conv2d(inplane, inplane, 3, 1, 1),
-            nn.BatchNorm2d(inplane),
-            nn.ReLU()
-        )
+        self.swap_layer = ConvBNRelu(inplane, inplane)
 
     def forward(self, x1, x2):
         x1_path_idx = x1['path_idx']
@@ -38,15 +46,19 @@ class NASFPN(nn.Module):
         self.cfg = cfg
         self.layers_num = self.cfg.NAS.ss_num  # 7 by default
         self.path_num = self.cfg.NAS.path_num  # 3 by default
-        self.inplane = self.cfg.NAS.fpn_inplane  # 256 by default
+        self.inplane = self.cfg.NAS.fpn_inplane
+        self.plane = self.cfg.NAS.fpn_plane  # 256 by default
         self.super_fpn = self.make_super_fpn()
+        self.input_layers = nn.ModuleList(
+            [ConvBNRelu(self.inplane[i], self.plane, kernel_size=1, padding=0) for i in range(self.path_num)]
+        )
 
     def make_super_fpn(self):
         paths = []
         for path_idx in range(1, self.path_num+1):
             layers = []
             for layer_idx in range(1, self.layers_num+1):
-                layers.append(SwapCell(layer_idx, path_idx, inplane=self.inplane))
+                layers.append(SwapCell(layer_idx, path_idx, inplane=self.plane))
             layers = nn.ModuleList(layers)
             paths.append(layers)
         super_fpn = nn.ModuleList(paths)
@@ -59,7 +71,7 @@ class NASFPN(nn.Module):
         :param l_seq: tensor([0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 2, 0, 4, 1, 4, 0, 1, 0, 4, 2, 3])
         :return:
         """
-        all_xs = [[{'feat': xs[i], 'path_idx': -1, 'layer_idx': -1} for i in range(self.path_num)]]
+        all_xs = [[{'feat': self.input_layers[i](xs[i]), 'path_idx': -1, 'layer_idx': -1} for i in range(self.path_num)]]
         i = 0
         for cur_layer_idx in range(self.layers_num):
             cur_xs = []
@@ -71,7 +83,10 @@ class NASFPN(nn.Module):
                         all_xs[-1][cur_path_idx], all_xs[other_layer_idx][other_path_idx])
                 )
             all_xs.append(cur_xs)
-        return all_xs[-1]
+        outs = []
+        for xs in all_xs[-1]:
+            outs.append(xs['feat'])
+        return outs
 
 
 if __name__ == '__main__':

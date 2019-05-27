@@ -1,3 +1,6 @@
+submit.py
+setup.sh
+pai_configuration.json
 .idea
 .vscode/*
 !.vscode/settings.json

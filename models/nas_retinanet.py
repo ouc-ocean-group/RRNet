@@ -9,7 +9,7 @@ class NASRetinaNet(nn.Module):
         self.num_anchors = cfg.Model.num_anchors
         self.num_classes = cfg.num_classes
         self.backbone = get_backbone(cfg.Model.backbone, cfg.Train.pretrained)
-        self.fpn = get_fpn(cfg.Model.fpn)
+        self.fpn = get_fpn(cfg.Model.fpn, cfg)
         self.cls = get_detector(cfg.Model.cls_detector, self.num_anchors * self.num_classes)
         self.loc = get_detector(cfg.Model.loc_detector, self.num_anchors * 4)
 

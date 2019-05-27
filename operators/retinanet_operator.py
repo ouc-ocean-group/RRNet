@@ -18,8 +18,7 @@ class RetinaNetOperator(BaseOperator):
 
         model = RetinaNet(cfg).cuda(cfg.Distributed.gpu_id)
 
-        self.optimizer = optim.SGD(model.parameters(),
-                                   lr=cfg.Train.lr, momentum=cfg.Train.momentum, weight_decay=cfg.Train.weight_decay)
+        self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 
@@ -27,7 +26,7 @@ class RetinaNetOperator(BaseOperator):
 
         super(RetinaNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        self.anchor_maker = Anchors(sizes=(16, 32, 64))
+        self.anchor_maker = Anchors(sizes=(16, 64, 128))
 
         self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
             self.make_anchor(cfg.Train.crop_size)
@@ -65,7 +64,7 @@ class RetinaNetOperator(BaseOperator):
             cls_pred = cls_preds[n][cls_idx, :]
 
             assigned_anno = anno[max_idx[pos_idx], :]
-            cls_target[pos_idx, assigned_anno[:, 5].long()-1] = 1
+            cls_target[pos_idx, assigned_anno[:, 5].long() - 1] = 1
             cls_target = cls_target[cls_idx]
 
             cls_loss = self.focal_loss(cls_pred, cls_target) / max(1., pos_idx.sum().float())
@@ -107,12 +106,13 @@ class RetinaNetOperator(BaseOperator):
                     regression_diff - 0.5 / 9.0
                 )
                 reg_losses.append(reg_loss.mean())
+            else:
+                reg_losses.append(torch.zeros(1).to(loc_preds.device))
 
         return sum(cls_losses) / bs_num, sum(reg_losses) / bs_num
 
     def training_process(self):
-        if self.main_proc_flag:
-            logger = Logger(self.cfg)
+        logger = Logger(self.cfg, self.main_proc_flag)
 
         self.model.train()
 
@@ -125,7 +125,7 @@ class RetinaNetOperator(BaseOperator):
         training_loader = iter(self.training_loader)
 
         for step in range(self.cfg.Train.iter_num):
-            # self.lr_sch.step()
+            self.lr_sch.step()
             self.optimizer.zero_grad()
 
             try:
@@ -147,33 +147,33 @@ class RetinaNetOperator(BaseOperator):
             total_cls_loss += cls_loss.item()
             total_loc_loss += loc_loss.item()
 
-            if self.main_proc_flag:
-                if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
-                    # Loss
-                    log_data = {'scalar': {
-                        'train/total_loss': total_loss / self.cfg.Train.print_interval,
-                        'train/cls_loss': total_cls_loss / self.cfg.Train.print_interval,
-                        'train/loc_loss': total_loc_loss / self.cfg.Train.print_interval,
-                    }}
+            if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
+                # Loss
+                log_data = {'scalar': {
+                    'train/total_loss': total_loss / self.cfg.Train.print_interval,
+                    'train/cls_loss': total_cls_loss / self.cfg.Train.print_interval,
+                    'train/loc_loss': total_loc_loss / self.cfg.Train.print_interval,
+                }}
 
-                    img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                    pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
-                    vis_img = visualize(img, pred_bbox)
-                    vis_gt_img = visualize(img, annos[0])
-                    vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                    vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+                pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+                vis_img = visualize(img, pred_bbox)
+                vis_gt_img = visualize(img, annos[0])
+                vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                vis_gt_img = torch.from_numpy(vis_gt_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
 
-                    log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
+                log_data['imgs'] = {'train': [vis_img, vis_gt_img]}
 
-                    logger.log(log_data, step)
+                logger.log(log_data, step)
 
-                    total_loss = 0
-                    total_cls_loss = 0
-                    total_loc_loss = 0
+                total_loss = 0
+                total_cls_loss = 0
+                total_loc_loss = 0
 
-                if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
-                        step == self.cfg.Train.iter_num - 1:
-                    self.save_ckp(self.model.module, step, logger.log_dir)
+            if self.main_proc_flag and (
+                    step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or\
+                    step == self.cfg.Train.iter_num - 1):
+                self.save_ckp(self.model.module, step, logger.log_dir)
 
     def transform_bbox(self, cls_pred, loc_pred):
         """
@@ -182,8 +182,9 @@ class RetinaNetOperator(BaseOperator):
         :param loc_pred: (AnchorsN, 4)
         :return: BBox, (N, 8)
         """
+        cls_pred = cls_pred.sigmoid()
         cls_pred_prob, cls_pred_idx = cls_pred.max(dim=1)
-        object_idx = cls_pred_prob > 0.05
+        object_idx = cls_pred_prob > 0.1
         cls_prob = cls_pred_prob[object_idx]
         cls = cls_pred_idx[object_idx] + 1
         boxes = self.anchors[object_idx, :]

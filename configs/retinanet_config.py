@@ -23,9 +23,7 @@ Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
-Config.Train.lr = 0.01
-Config.Train.momentum = 0.9
-Config.Train.weight_decay = 0.0001
+Config.Train.lr = 1e-5
 # Milestones for changing learning rage.
 Config.Train.lr_milestones = [60000, 80000]
 
@@ -45,7 +43,7 @@ Config.Train.transforms = Compose([
 
 # Log params.
 Config.Train.print_interval = 20
-Config.Train.checkpoint_interval = 30000
+Config.Train.checkpoint_interval = 10000
 
 
 # Validation Config =========================================

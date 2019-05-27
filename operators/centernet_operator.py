@@ -10,7 +10,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from .base_operator import BaseOperator
 
-from datasets import make_dataloader
+from datasets import make_ctnet_dataloader
 from utils.vis.logger import Logger
 from modules.anchor import Anchors
 from datasets.transforms.functional import denormalize, gaussian_radius, draw_umich_gaussian
@@ -29,7 +29,7 @@ class CenterNetOperator(BaseOperator):
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 
-        self.training_loader, self.validation_loader = make_dataloader(cfg)
+        self.training_loader, self.validation_loader = make_ctnet_dataloader(cfg)
 
         super(CenterNetOperator, self).__init__(
             cfg=self.cfg, model=model, lr_sch=self.lr_sch)
@@ -78,19 +78,20 @@ class CenterNetOperator(BaseOperator):
 
             try:
                 # imgs, annos = next(training_loader)
-                imgs, hms, whs, regs, inds, reg_masks, gt = next(training_loader)
+                imgs, hms, whs, regs, inds, reg_masks, gt, names = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
                 # imgs, annos = next(training_loader)
-                imgs, hms, whs, regs, inds, reg_masks, gt = next(training_loader)
+                imgs, hms, whs, regs, inds, reg_masks, gt, names = next(training_loader)
 
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
             hms = hms.cuda(self.cfg.Distributed.gpu_id)
             whs = whs.cuda(self.cfg.Distributed.gpu_id)
             regs = regs.cuda(self.cfg.Distributed.gpu_id)
             inds = inds.cuda(self.cfg.Distributed.gpu_id)
+            names = names.cuda(self.cfg.Distributed.gpu_id)
             reg_masks = reg_masks.cuda(self.cfg.Distributed.gpu_id)
             gt = gt.cuda(self.cfg.Distributed.gpu_id)
             annos = hms, whs, regs, inds, reg_masks

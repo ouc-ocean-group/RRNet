@@ -30,6 +30,7 @@ class DronesDET(Dataset):
 
     def __getitem__(self, item):
         name = self.mdf[item]
+
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
         '''read image
@@ -42,21 +43,24 @@ class DronesDET(Dataset):
         annotation = np.array(annotation)
         annotation = annotation[annotation[:, 5] != 11]
         sample = (image, annotation)
+
         if self.transforms:
             sample = self.transforms(sample)
-        return sample
+        return sample[0], sample[1], name
 
     @staticmethod
     def collate_fn(batch):
         max_n = 0
         for i, batch_data in enumerate(batch):
             max_n = max(max_n, batch_data[1].size(0))
-        imgs, annos = [], torch.zeros(len(batch), max_n, 8)
+        imgs, annos, names = [], torch.zeros(len(batch), max_n, 8), []
         for i, batch_data in enumerate(batch):
             imgs.append(batch_data[0].unsqueeze(0))
             annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
+            names.append(batch_data[2])
         imgs = torch.cat(imgs)
-        return imgs, annos
+        return imgs, annos, names
+
 
     @staticmethod
     def collate_fn_centernet(batch):
@@ -69,7 +73,7 @@ class DronesDET(Dataset):
         regs = []
         inds = []
         reg_masks = []
-        annos = torch.zeros(len(batch), max_n, 8)
+        annos, names = torch.zeros(len(batch), max_n, 8), []
         trans = TransToHM()
 
         for i, batch_data in enumerate(batch):
@@ -82,6 +86,7 @@ class DronesDET(Dataset):
             regs.append(reg)
             reg_masks.append(reg_mask)
             annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
+            names.append(batch_data[2])
 
         imgs = torch.cat(imgs)
         hms = torch.stack(hms)
@@ -90,5 +95,7 @@ class DronesDET(Dataset):
         regs = torch.stack(regs)
         reg_masks = torch.stack(reg_masks)
         # annos = hms, whs, regs, inds, reg_masks
-        return imgs, hms, whs, regs, inds, reg_masks, annos
+        return imgs, hms, whs, regs, inds, reg_masks, annos, names
+
+
 

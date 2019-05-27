@@ -149,6 +149,7 @@ def color_jitter(data, brightness, contrast, saturation):
     return im
 
 
+
 def gaussian_radius(det_size, min_overlap=0.7):
     height, width = det_size
 
@@ -197,4 +198,27 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
         np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
     return heatmap
+
+
+def mask_ignore(data, mean=(0.485, 0.456, 0.406), ignore_cls=0):
+    """
+    Mask the ignore region with mean value, and remove all the bbox annotations of ignore region.
+    :param data: (Tensor, Tensor) image and annotation
+    :param mean: Mean value.
+    :param ignore_cls: Ignore class idx.
+    :return: (Tensor, Tensor) transformed image and annotation
+    """
+    mean = torch.tensor(mean).unsqueeze(1).unsqueeze(1)
+    img = data[0]
+    ign_idx = data[1][:, 5] == ignore_cls
+
+    ign_bboxes = data[1][ign_idx, :4]
+
+    for ign_bbox in ign_bboxes:
+        x, y, w, h = ign_bbox[:4]
+        img[:, int(y):int(y+h), int(x):int(x+w)] = mean
+
+    anno = data[1][1-ign_idx, :]
+
+    return img, anno
 

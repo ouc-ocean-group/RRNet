@@ -88,6 +88,7 @@ class ColorJitter(object):
         return F.color_jitter(data[0], self.brightness, self.contrast, self.saturation), data[1]
 
 
+
 class TransToHM(object):
 
     def __call__(self, data, max_n, data_n):
@@ -132,3 +133,15 @@ class TransToHM(object):
         reg=torch.tensor(reg)
         reg_mask=torch.tensor(reg_mask)
         return data[0], hm, wh, ind, reg, reg_mask
+
+class MaskIgnore(object):
+    def __init__(self, mean=(0.485, 0.456, 0.406), ignore_idx=0):
+        self.mean = mean
+        self.ignore_idx = ignore_idx
+
+    def __call__(self, data):
+        assert isinstance(data[0], torch.Tensor)
+        assert isinstance(data[1], torch.Tensor)
+
+        return F.mask_ignore(data, self.mean, self.ignore_idx)
+

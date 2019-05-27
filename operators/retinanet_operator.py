@@ -10,7 +10,7 @@ from utils.metrics.metrics import bbox_iou
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 import numpy as np
-from ext.nms_wrapper import nms
+from ext.nms.nms_wrapper import nms
 
 class RetinaNetOperator(BaseOperator):
     def __init__(self, cfg):
@@ -129,7 +129,7 @@ class RetinaNetOperator(BaseOperator):
             self.optimizer.zero_grad()
 
             try:
-                imgs, annos = next(training_loader)
+                imgs, annos, names = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)

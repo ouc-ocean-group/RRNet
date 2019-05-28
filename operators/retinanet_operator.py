@@ -134,7 +134,7 @@ class RetinaNetOperator(BaseOperator):
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
-                imgs, annos = next(training_loader)
+                imgs, annos, names = next(training_loader)
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
             annos = annos.cuda(self.cfg.Distributed.gpu_id)
             outs = self.model(imgs)

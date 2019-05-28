@@ -28,15 +28,6 @@ if __name__ == "__main__":
             Average Recall     (AR) @[ IoU=0.50:0.95] = 0.2228.
             Cost Time: 10.611038446426392s
     """
-    # Update some setting here
-    # Batch_size must be set to 1 ,
-    # because different images have different size,
-    # So they can't cat into one tensor
-    Config.Val.is_eval = True
-    Config.Val.model_path = './data/ckp/ckp-89999.pth'
-    Config.Val.result_dir = './data/result/'
-    Config.Val.batch_size = 1
-    Config.Val.num_workers = 2
 
     print("Start generate Txt file ...")
     dis_operator = DistributedWrapper(Config, RetinaNetOperator)

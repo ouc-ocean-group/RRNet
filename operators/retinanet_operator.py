@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.optim as optim
 from .base_operator import BaseOperator
@@ -10,7 +11,7 @@ from utils.metrics.metrics import bbox_iou
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 import numpy as np
-
+from ext.nms.nms_wrapper import nms
 
 class RetinaNetOperator(BaseOperator):
     def __init__(self, cfg):
@@ -129,12 +130,12 @@ class RetinaNetOperator(BaseOperator):
             self.optimizer.zero_grad()
 
             try:
-                imgs, annos = next(training_loader)
+                imgs, annos, names = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
-                imgs, annos = next(training_loader)
+                imgs, annos, names = next(training_loader)
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
             annos = annos.cuda(self.cfg.Distributed.gpu_id)
             outs = self.model(imgs)
@@ -211,5 +212,55 @@ class RetinaNetOperator(BaseOperator):
         pred = torch.stack([pred_x, pred_y, pred_w, pred_h, cls_prob, cls.float()]).t()
         return pred
 
+    @staticmethod
+    def save_result(file_path, pred_bbox):
+        pred_bbox = torch.clamp(pred_bbox, min=0.)
+        with open(file_path, 'w') as f:
+            for i in range(pred_bbox.size()[0]):
+                bbox = pred_bbox[i]
+                line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
+                    int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]),
+                    float(bbox[4]), int(bbox[5])
+                )
+                f.write(line)
+
     def evaluation_process(self):
-        pass
+        self.model.eval()
+
+        state_dict = torch.load(self.cfg.Val.model_path)
+        self.model.module.load_state_dict(state_dict)
+        epoch = 0
+        step = 0
+
+        self.validation_loader.sampler.set_epoch(epoch)
+
+        with torch.no_grad():
+            for data in self.validation_loader:
+                step += 1
+                imgs, annos, names = data
+                imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
+
+                img_size = (imgs.size()[2], imgs.size()[3])
+                self.anchors, self.anchors_widths, self.anchors_heights, self.anchors_ctr_x, self.anchors_ctr_y = \
+                    self.make_anchor(img_size)
+
+                outs = self.model(imgs)
+                pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+
+                # NMS
+                nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
+                nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
+                nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
+                keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
+                pred_bbox = pred_bbox[keep_idx]
+
+                file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
+                self.save_result(file_path, pred_bbox)
+
+                del imgs
+                del outs
+                del pred_bbox
+                if self.main_proc_flag:
+                    print('Step : %d / %d' % (step, len(self.validation_loader)))
+            print('Done !!!')
+

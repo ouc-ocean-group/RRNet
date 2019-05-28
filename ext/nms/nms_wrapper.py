@@ -19,12 +19,12 @@ def soft_nms(dets, sigma=0.5, Nt=0.3, threshold=0.001, method=1):
 
 
 # Original NMS implementation
-def nms(dets, thresh, gpu=False):
+def nms(dets, thresh, gpu_id=0):
     if dets.shape[0] == 0:
         return []
     else:
         if gpu:
-            return gpu_nms(dets, thresh, device_id=0)
+            return gpu_nms(dets, thresh, device_id=gpu_id)
         return cpu_nms(dets, thresh)
 
 

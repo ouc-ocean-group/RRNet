@@ -12,11 +12,25 @@ Config.log_prefix = 'RetinaNet'
 Config.use_tensorboard = True
 Config.num_classes = 10
 
+# NAS Config ==============================================
+Config.NAS = edict()
+Config.NAS.epoch = 100
+Config.NAS.ss_num = 7
+Config.NAS.path_num = 3
+
+Config.NAS.lstm_size = 64
+Config.NAS.temperature = 0.5
+Config.NAS.controller_tanh_constant = 0.2
+Config.NAS.entropy_weight = 0.0001
+Config.NAS.baseline_decrease = 0.99
+
+Config.NAS.fpn_inplane = [512, 1024, 2048]
+Config.NAS.fpn_plane = 256  # 256 by default
+
 # Training Config =========================================
 Config.Train = edict()
 # If use the pretrained backbone model.
 Config.Train.pretrained = True
-
 # Dataloader params.
 Config.Train.batch_size = 8
 Config.Train.num_workers = 4
@@ -51,35 +65,28 @@ Config.Val = edict()
 Config.Val.model_path = './log/model.pth'
 
 # Dataloader params.
-Config.Val.batch_size = 2
+Config.Val.batch_size = 8
 Config.Val.num_workers = 4
 Config.Val.sampler = DistributedSampler
 
 # Transforms
-Config.Val.mean = (0.485, 0.456, 0.406)
-Config.Val.std = (0.229, 0.224, 0.225)
 Config.Val.transforms = Compose([
     ToTensor(),
-    Normalize(Config.Val.mean, Config.Val.std)
+    HorizontalFlip(),
+    RandomCrop(Config.Train.crop_size),
+    Normalize(Config.Train.mean, Config.Train.std),
+    MaskIgnore(Config.Train.mean)
 ])
 
 
 # Model Config ===============================================
 Config.Model = edict()
-Config.Model.backbone = 'resnet50'
-Config.Model.fpn = 'fpn'
+Config.Model.backbone = 'resnet10'
+Config.Model.fpn = 'nasfpn'
 Config.Model.cls_detector = 'retinanet_detector'
 Config.Model.loc_detector = 'retinanet_detector'
 Config.Model.num_anchors = 9
 
-# NAS Config ==============================================
-Config.NAS = edict()
-Config.NAS.ss_num = 7
-Config.NAS.path_num = 3
-Config.NAS.fpn_inplane = [512, 1024, 2048]
-Config.NAS.fpn_plane = 256  # 256 by default
-Config.NAS.p_seq = [1, 2, 1, 0, 0, 1, 1, 0, 0, 1, 1, 2, 0, 2, 1, 0, 0, 0, 0, 1, 0]
-Config.NAS.l_seq = [0, 0, 0, 1, 0, 0, 2, 2, 0, 2, 1, 0, 0, 3, 1, 3, 2, 5, 6, 1, 5]
 
 # Distributed Config =========================================
 Config.Distributed = edict()

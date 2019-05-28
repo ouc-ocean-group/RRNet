@@ -19,7 +19,7 @@ class CenterNetDetector(nn.Module):
 
     def forward(self, input, index):
         output = self.detect_layer[index](input)
-        output = F.interpolate(output, scale_factor=4, mode='bilinear', align_corners=True)
+        # output = F.interpolate(output, scale_factor=4, mode='bilinear', align_corners=True)
         return output
 
 

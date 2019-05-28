@@ -29,7 +29,8 @@ class DronesDET(Dataset):
         return len(self.mdf)
 
     def __getitem__(self, item):
-        name = self.mdf[item]
+        name = self.mdf[500]
+        # name = self.mdf[100]
 
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
@@ -79,13 +80,13 @@ class DronesDET(Dataset):
         for i, batch_data in enumerate(batch):
             imgs.append(batch_data[0].unsqueeze(0))
             data_n = batch_data[1].size(0)
+            annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
             img, hm, wh, ind, reg, reg_mask = trans(batch_data, max_n, data_n)
             hms.append(hm)
             whs.append(wh)
             inds.append(ind)
             regs.append(reg)
             reg_masks.append(reg_mask)
-            annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
             names.append(batch_data[2])
 
         imgs = torch.cat(imgs)

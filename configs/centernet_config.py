@@ -10,7 +10,7 @@ Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
 Config.log_prefix = 'CenterNet'
 Config.use_tensorboard = True
-Config.num_classes = 10
+Config.num_classes = 11
 
 # Training Config =========================================
 Config.Train = edict()
@@ -18,12 +18,12 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 2
+Config.Train.batch_size = 4
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
-Config.Train.lr = 0.01
+Config.Train.lr = 1e-5
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
@@ -39,7 +39,8 @@ Config.Train.transforms = Compose([
     ToTensor(),
     HorizontalFlip(),
     RandomCrop(Config.Train.crop_size),
-    Normalize(Config.Train.mean, Config.Train.std)
+    Normalize(Config.Train.mean, Config.Train.std),
+    MaskIgnore(Config.Train.mean)
 ])
 
 # Log params.
@@ -52,7 +53,7 @@ Config.Val = edict()
 Config.Val.model_path = './log/model.pth'
 
 # Dataloader params.
-Config.Val.batch_size = 2
+Config.Val.batch_size = 4
 Config.Val.num_workers = 4
 Config.Val.sampler = DistributedSampler
 

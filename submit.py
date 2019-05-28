@@ -22,3 +22,5 @@ pai.submit()
 # /bin/bash /root/mount.sh && cd $PAI_JOB_NAME && cd experiments && python3 evaluate.py
 
 #cd $PAI_JOB_NAME && hdfs dfs -get $PAI_DATA_DIR && tar -xf cityscapes.tar && cd experiments && python3 train.py
+
+# tensorboard --port *** --logdir ./

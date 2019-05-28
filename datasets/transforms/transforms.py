@@ -97,7 +97,8 @@ class TransToHM(object):
         data_objs = data_n
         height, width = data[0].shape[1], data[0].shape[2]
         # init var
-        hm = np.zeros((10, height, width), dtype=np.float32)
+        hm = np.zeros((11, height // 4, width // 4), dtype=np.float32)
+
         wh = np.zeros((max_objs, 2), dtype=np.float32)
         reg = np.zeros((max_objs, 2), dtype=np.float32)
         ind = np.zeros((max_objs), dtype=np.int64)
@@ -108,6 +109,11 @@ class TransToHM(object):
             bbox = an[0:4]
             bbox[2] += bbox[0]
             bbox[3] += bbox[1]
+            bbox[0]  = bbox[0] // 4
+            bbox[1]  = bbox[1] // 4
+            bbox[2]  = bbox[2] // 4
+            bbox[3]  = bbox[3] // 4
+
             # box class (object_category)
             cls_id = an[5]
 
@@ -120,11 +126,12 @@ class TransToHM(object):
                 ct = np.array(
                     [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
                 ct_int = ct.astype(np.int32)
-                F.draw_umich_gaussian(hm[int(cls_id)-1], ct_int, radius)
+
+                F.draw_umich_gaussian(hm[int(cls_id)], ct_int, radius)
                 # cal wh
                 # wh.append()
                 wh[k] = [1. * w, 1. * h]
-                ind[k] = ct_int[1] * width + ct_int[0]
+                ind[k] = ct_int[1] * (width // 4)+ ct_int[0]
                 reg[k] = ct - ct_int
                 reg_mask[k] = 1
         hm=torch.tensor(hm)

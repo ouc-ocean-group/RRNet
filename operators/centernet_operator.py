@@ -24,8 +24,8 @@ class CenterNetOperator(BaseOperator):
 
         model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
 
-        self.optimizer = optim.SGD(model.parameters(),
-                                   lr=cfg.Train.lr, momentum=cfg.Train.momentum, weight_decay=cfg.Train.weight_decay)
+        # self.optimizer = optim.SGD(model.parameters(), lr=cfg.Train.lr, momentum=cfg.Train.momentum, weight_decay=cfg.Train.weight_decay)
+        self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 
@@ -91,14 +91,13 @@ class CenterNetOperator(BaseOperator):
             whs = whs.cuda(self.cfg.Distributed.gpu_id)
             regs = regs.cuda(self.cfg.Distributed.gpu_id)
             inds = inds.cuda(self.cfg.Distributed.gpu_id)
-            names = names.cuda(self.cfg.Distributed.gpu_id)
             reg_masks = reg_masks.cuda(self.cfg.Distributed.gpu_id)
             gt = gt.cuda(self.cfg.Distributed.gpu_id)
             annos = hms, whs, regs, inds, reg_masks
             outs = self.model(imgs)
             # annos= self.trans_anns(imgs,annos)
             hm_loss, wh_loss, off_loss = self.criterion(outs, annos)
-            loss = hm_loss + wh_loss + off_loss
+            loss = hm_loss + (0.1 * wh_loss) + off_loss
             # TODO if here use loss.mean()
             loss.backward()
             self.optimizer.step()
@@ -165,10 +164,10 @@ class CenterNetOperator(BaseOperator):
         clses = clses.view(batch, K, 1).float()
         scores = scores.view(batch, K, 1)
 
-        pred_x = xs - wh[..., 0:1] / 2
-        pred_y = ys - wh[..., 1:2] / 2
-        pred_w = wh[..., 0:1]
-        pred_h = wh[..., 1:2]
+        pred_x = (xs - wh[..., 0:1] / 2) * 4
+        pred_y = (ys - wh[..., 1:2] / 2) * 4
+        pred_w = wh[..., 0:1] * 4
+        pred_h = wh[..., 1:2] * 4
         pred = torch.cat([pred_x[0], pred_y[0], pred_w[0], pred_h[0], scores[0], clses[0]], dim=1)
         return pred
 

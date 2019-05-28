@@ -14,7 +14,7 @@ Config.num_classes = 10
 
 # NAS Config ==============================================
 Config.NAS = edict()
-Config.NAS.epoch = 50
+Config.NAS.epoch = 100
 Config.NAS.ss_num = 7
 Config.NAS.path_num = 3
 

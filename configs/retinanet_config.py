@@ -72,6 +72,14 @@ Config.Model.cls_detector = 'retinanet_detector'
 Config.Model.loc_detector = 'retinanet_detector'
 Config.Model.num_anchors = 9
 
+# NAS Config ==============================================
+Config.NAS = edict()
+Config.NAS.ss_num = 7
+Config.NAS.path_num = 3
+Config.NAS.fpn_inplane = [512, 1024, 2048]
+Config.NAS.fpn_plane = 256  # 256 by default
+Config.NAS.p_seq = [1, 2, 1, 0, 0, 1, 1, 0, 0, 1, 1, 2, 0, 2, 1, 0, 0, 0, 0, 1, 0]
+Config.NAS.l_seq = [0, 0, 0, 1, 0, 0, 2, 2, 0, 2, 1, 0, 0, 3, 1, 3, 2, 5, 6, 1, 5]
 
 # Distributed Config =========================================
 Config.Distributed = edict()

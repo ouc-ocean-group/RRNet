@@ -108,8 +108,6 @@ class NASFPNOperator(object):
 
     def training_process(self):
         logger = Logger(self.cfg, self.main_proc_flag)
-        total_sn_step = 0
-        total_ctl_step = 0
         baseline = None
         for epoch in range(self.cfg.NAS.epoch):
             self.supernet.train()
@@ -136,12 +134,11 @@ class NASFPNOperator(object):
                 total_sn_loss += loss.item()
 
                 if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
-                    log_data = {'scalar': {
-                        'train/total_loss': total_sn_loss / self.cfg.Train.print_interval
-                    }}
-                    logger.log(log_data, total_sn_step)
+                    log_str = "{} {}/{} | SNLoss: {:.4}".format(
+                        logger.stamp_timer(step), step, len(self.supernet_loader),
+                        total_sn_loss/self.cfg.Train.print_interval)
+                    logger.print(log_str)
                     total_sn_loss = 0
-                total_sn_step += 1
 
             logger.print("=> Training Controller...")
             self.supernet.eval()
@@ -186,13 +183,13 @@ class NASFPNOperator(object):
                 total_ctl_reward += reward.item()
 
                 if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
-                    log_data = {'scalar': {
-                        'train/total_ctl_loss': total_ctl_loss / self.cfg.Train.print_interval,
-                        'train/total_ctl_reward': total_ctl_reward / self.cfg.Train.print_interval
-                    }}
-                    logger.log(log_data, total_ctl_step)
+                    log_str = "{} {}/{} | CTLLoss: {:.4}, CTLReward: {:.4}".format(
+                        logger.stamp_timer(step), step, len(self.supernet_loader),
+                        total_ctl_loss / self.cfg.Train.print_interval,
+                        total_ctl_reward / self.cfg.Train.print_interval
+                    )
+                    logger.print(log_str)
                     total_ctl_loss, total_ctl_reward = 0, 0
-                total_ctl_step += 1
 
             logger.print("=> Validation...")
             self.supernet.eval()

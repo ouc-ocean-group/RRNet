@@ -1,6 +1,6 @@
 from backbones.resnet import resnet10, resnet50, resnet101
 from modules.fpn import FPN
-from modules.nas.fpn import NASFPN
+from modules.nas.fpn import NASSuperFPN, NASSearchedFPN
 from detectors.retinanet_detector import RetinaNetDetector
 
 
@@ -19,7 +19,9 @@ def get_fpn(fp_name, cfg=None):
     if fp_name == 'fpn':
         return FPN()
     elif fp_name == 'nasfpn':
-        return NASFPN(cfg)
+        return NASSuperFPN(cfg)
+    elif fp_name == 'searchedfpn':
+        return NASSearchedFPN(cfg)
     else:
         return FPN()
 

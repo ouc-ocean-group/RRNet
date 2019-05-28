@@ -145,7 +145,7 @@ class NASSearchedFPN(nn.Module):
         return outs
 
 
-if __name__ == '__main__':
+# if __name__ == '__main__':
     # from configs.nas_retinanet_config import Config
     # nassuperfpn = NASSuperFPN(Config)
     # p_seq = torch.tensor([1, 1, 1, 1, 2, 1, 0, 1, 0, 2, 1, 0, 1, 2, 1, 2, 0, 1, 1, 0, 0])

@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.optim as optim
 from .base_operator import BaseOperator
@@ -224,8 +225,6 @@ class RetinaNetOperator(BaseOperator):
                 f.write(line)
 
     def evaluation_process(self):
-        import os
-        import time
         self.model.eval()
 
         state_dict = torch.load(self.cfg.Val.model_path)
@@ -234,7 +233,6 @@ class RetinaNetOperator(BaseOperator):
         step = 0
 
         self.validation_loader.sampler.set_epoch(epoch)
-        st = time.time()
 
         with torch.no_grad():
             for data in self.validation_loader:
@@ -265,5 +263,4 @@ class RetinaNetOperator(BaseOperator):
                 if self.main_proc_flag:
                     print('Step : %d / %d' % (step, len(self.validation_loader)))
             print('Done !!!')
-            print('Using %f' % (time.time() - st))
 

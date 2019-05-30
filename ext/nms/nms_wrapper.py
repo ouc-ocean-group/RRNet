@@ -23,7 +23,7 @@ def nms(dets, thresh, gpu_id=0):
     if dets.shape[0] == 0:
         return []
     else:
-        if gpu:
+        if gpu_id is not None:
             return gpu_nms(dets, thresh, device_id=gpu_id)
         return cpu_nms(dets, thresh)
 

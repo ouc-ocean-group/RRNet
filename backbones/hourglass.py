@@ -118,6 +118,8 @@ class Hourglass(nn.Module):
         low2 = self.low2(low1)
         low3 = self.low3(low2)
         up2 = self.up2(low3)
+        Upsample = nn.Upsample(size=(up1.size()[2], up1.size()[3]), mode='bilinear', align_corners=True)
+        up2 = Upsample(up2)
         return up1 + up2
 
 

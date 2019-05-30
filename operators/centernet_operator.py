@@ -1,4 +1,4 @@
-
+import os
 from models.centernet import CenterNet
 from modules.loss.focalloss2 import FocalLoss
 import numpy as np
@@ -15,6 +15,7 @@ from utils.vis.logger import Logger
 from modules.anchor import Anchors
 from datasets.transforms.functional import denormalize, gaussian_radius, draw_umich_gaussian
 from utils.vis.annotations import visualize
+from ext.nms.nms_wrapper import nms
 
 
 
@@ -169,10 +170,10 @@ class CenterNetOperator(BaseOperator):
         pred_w = wh[..., 0:1] * 4
         pred_h = wh[..., 1:2] * 4
         pred = torch.cat([pred_x[0], pred_y[0], pred_w[0], pred_h[0], scores[0], clses[0]], dim=1)
+        # pred1 = pred[:, 4] >= 0.5 #Score Threshhold
+        # pred = pred[pred1]
         return pred
 
-    def evaluation_process(self):
-        pass
 
     def _tranpose_and_gather_feat(self, feat, ind):
         feat = feat.permute(0, 2, 3, 1).contiguous()
@@ -215,3 +216,53 @@ class CenterNetOperator(BaseOperator):
             feat = feat[mask]
             feat = feat.view(-1, dim)
         return feat
+
+    @staticmethod
+    def save_result(file_path, pred_bbox):
+        pred_bbox = torch.clamp(pred_bbox, min=0.)
+        with open(file_path, 'w') as f:
+            for i in range(pred_bbox.size()[0]):
+                bbox = pred_bbox[i]
+                line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
+                    int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]),
+                    float(bbox[4]), int(bbox[5])
+                )
+                f.write(line)
+
+    def evaluation_process(self):
+        self.model.eval()
+
+        state_dict = torch.load(self.cfg.Val.model_path)
+        self.model.module.load_state_dict(state_dict)
+        epoch = 0
+        step = 0
+
+        self.validation_loader.sampler.set_epoch(epoch)
+
+        with torch.no_grad():
+            for data in self.validation_loader:
+                step += 1
+                imgs, hms, whs, regs, inds, reg_masks, gt, names = data
+                imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
+
+                outs = self.model(imgs)
+                pred_bbox = self.ctnet_transform_bbox(outs).cpu()
+
+                # NMS
+
+                nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
+                nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
+                nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
+                keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
+                pred_bbox = pred_bbox[keep_idx]
+
+
+                file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
+                self.save_result(file_path, pred_bbox)
+
+                del imgs
+                del outs
+                del pred_bbox
+                if self.main_proc_flag:
+                    print('Step : %d / %d' % (step, len(self.validation_loader)))
+            print('Done !!!')

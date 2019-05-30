@@ -184,6 +184,7 @@ def gaussian2D(shape, sigma=1):
 
 def draw_umich_gaussian(heatmap, center, radius, k=1):
     diameter = 2 * radius + 1
+
     gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
     x, y = int(center[0]), int(center[1])
@@ -196,6 +197,28 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
     # masked_heatmap = np.asarray(heatmap[y - top:y + bottom, x - left:x + right])
     masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
     masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
+    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
+        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+    return heatmap
+
+def draw_umich_gaussian_withEllipse(heatmap, center, radius, k=1, bbox_w = 1, bbox_h = 1):
+    diameter_w = int(bbox_w / 2)
+    diameter_h = int(bbox_h / 2)
+    if diameter_h == 0:
+        diameter_h = 1
+    elif diameter_h % 2 == 0:
+        diameter_h = diameter_h + 1
+    if diameter_w == 0:
+        diameter_w = 1
+    elif diameter_w % 2 == 0:
+        diameter_w = diameter_w + 1
+    gaussian = gaussian2D((diameter_h, diameter_w), sigma=(diameter_w+diameter_h) / 12)
+
+    x, y = int(center[0]), int(center[1])
+
+    # masked_heatmap = np.asarray(heatmap[y - top:y + bottom, x - left:x + right])
+    masked_heatmap = heatmap[y - (diameter_h // 2):y + (diameter_h // 2) + 1, x - (diameter_w // 2):x + (diameter_w // 2) + 1]
+    masked_gaussian = gaussian
     if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
         np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
     return heatmap

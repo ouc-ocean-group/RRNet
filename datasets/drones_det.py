@@ -29,7 +29,7 @@ class DronesDET(Dataset):
         return len(self.mdf)
 
     def __getitem__(self, item):
-        name = self.mdf[500]
+        name = self.mdf[item]
         # name = self.mdf[100]
 
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))

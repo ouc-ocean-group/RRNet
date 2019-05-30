@@ -1,5 +1,5 @@
 {
-    "jobName": "ctnet_29043722",
+    "jobName": "testOneImage_14868247",
     "image": "192.168.193.253:5000/pytorch",
     "authFile": "",
     "dataDir": "$PAI_DEFAULT_FS_URI/data/datasets/cityscapes.tar",

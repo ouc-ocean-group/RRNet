@@ -128,6 +128,7 @@ class TransToHM(object):
                 ct_int = ct.astype(np.int32)
 
                 F.draw_umich_gaussian(hm[int(cls_id)], ct_int, radius)
+                # F.draw_umich_gaussian_withEllipse(hm[int(cls_id)], ct_int, radius, 1, w, h)
                 # cal wh
                 # wh.append()
                 wh[k] = [1. * w, 1. * h]

@@ -37,8 +37,8 @@ Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.transforms = Compose([
     ToTensor(),
-    HorizontalFlip(),
-    RandomCrop(Config.Train.crop_size),
+    #HorizontalFlip(),
+    #RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
     MaskIgnore(Config.Train.mean)
 ])
@@ -51,9 +51,9 @@ Config.Train.checkpoint_interval = 30000
 # Validation Config =========================================
 Config.Val = edict()
 Config.Val.model_path = './log/model.pth'
-
+Config.Val.is_eval = True
 # Dataloader params.
-Config.Val.batch_size = 4
+Config.Val.batch_size = 1
 Config.Val.num_workers = 4
 Config.Val.sampler = DistributedSampler
 
@@ -64,6 +64,7 @@ Config.Val.transforms = Compose([
     ToTensor(),
     Normalize(Config.Val.mean, Config.Val.std)
 ])
+Config.Val.result_dir = './log/'
 
 
 # Model Config ===============================================

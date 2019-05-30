@@ -1,5 +1,5 @@
 {
-    "jobName": "testOneImage_14868247",
+    "jobName": "testOneImageWithoutPretrained_15483552",
     "image": "192.168.193.253:5000/pytorch",
     "authFile": "",
     "dataDir": "$PAI_DEFAULT_FS_URI/data/datasets/cityscapes.tar",
@@ -12,10 +12,10 @@
         {
             "name": "task",
             "taskNumber": 1,
-            "cpuNumber": 13,
-            "memoryMB": 13000,
+            "cpuNumber": 7,
+            "memoryMB": 7000,
             "shmMB": 2048,
-            "gpuNumber": 2,
+            "gpuNumber": 1,
             "command": "sleep infinity"
         }
     ]

@@ -15,7 +15,7 @@ from utils.vis.logger import Logger
 from modules.anchor import Anchors
 from datasets.transforms.functional import denormalize, gaussian_radius, draw_umich_gaussian
 from utils.vis.annotations import visualize
-from ext.nms.nms_wrapper import nms
+# from ext.nms.nms_wrapper import nms
 
 
 
@@ -249,14 +249,13 @@ class CenterNetOperator(BaseOperator):
                 pred_bbox = self.ctnet_transform_bbox(outs).cpu()
 
                 # NMS
-
+                '''
                 nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
                 nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
                 nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
                 keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
                 pred_bbox = pred_bbox[keep_idx]
-
-
+                '''
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox)
 

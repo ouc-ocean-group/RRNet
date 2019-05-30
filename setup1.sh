@@ -2,6 +2,7 @@ cd data
 hdfs dfs -get $PAI_DEFAULT_FS_URI/data/datasets/DronesDET.tar
 tar -I pigz -xf DronesDET.tar
 cd ..
+hdfs dfs -get $PAI_DEFAULT_FS_URI/data/models/geo/hourglass.pth
 python3 train_centernet.py
 cd log
 mv Cen* CenterNet

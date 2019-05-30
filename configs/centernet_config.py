@@ -18,12 +18,12 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 4
+Config.Train.batch_size = 1
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
-Config.Train.lr = 1e-5
+Config.Train.lr = 1.6e-4
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
@@ -37,8 +37,8 @@ Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.transforms = Compose([
     ToTensor(),
-    #HorizontalFlip(),
-    #RandomCrop(Config.Train.crop_size),
+    # HorizontalFlip(),
+    # RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
     MaskIgnore(Config.Train.mean)
 ])

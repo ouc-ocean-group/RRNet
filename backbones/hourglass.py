@@ -3,6 +3,7 @@ Hourglass network inserted in the pre-activated Resnet
 Use lr=0.01 for current version
 (c) YANG, Wei
 """
+import torch
 import torch.nn as nn
 
 __all__ = ['HourglassNet', 'Hourglass']
@@ -205,4 +206,5 @@ def hourglass_net(num_stacks=2):
     :return: model
     """
     model = HourglassNet(num_stacks=num_stacks)
+    # model.load_state_dict(torch.load('./hourglass.pth'))
     return model

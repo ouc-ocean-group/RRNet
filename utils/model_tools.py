@@ -2,7 +2,6 @@ from backbones.resnet import resnet10, resnet50, resnet101
 from modules.fpn import FPN
 from modules.nas.fpn import NASSuperFPN, NASSearchedFPN
 from detectors.retinanet_detector import RetinaNetDetector
-from backbones.trident import trident_res50v2, trident_res50v2_deform, trident_res101v2, trident_res101v2_deform
 
 
 def get_backbone(backbone, pretrained=False):
@@ -13,12 +12,16 @@ def get_backbone(backbone, pretrained=False):
     elif backbone == 'resnet101':
         return resnet101(pretrained=pretrained)
     elif backbone == 'trires50':
+        from backbones.trident import trident_res50v2
         return trident_res50v2()
     elif backbone == 'trires50deform':
+        from backbones.trident import trident_res50v2_deform
         return trident_res50v2_deform()
     elif backbone == 'trires101':
+        from backbones.trident import trident_res101v2
         return trident_res101v2()
     elif backbone == 'trires101deform':
+        from backbones.trident import trident_res101v2_deform
         return trident_res101v2_deform()
     else:
         return resnet50(pretrained=pretrained)

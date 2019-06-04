@@ -5,7 +5,6 @@ from modules.nas.fpn import NASSuperFPN, NASSearchedFPN
 from detectors.centernet_detector import CenterNetDetector
 from detectors.centernet_detector import CenterNet_WH_Detector
 from detectors.retinanet_detector import RetinaNetDetector
-# from backbones.trident import trident_res50v2, trident_res50v2_deform, trident_res101v2, trident_res101v2_deform
 
 
 def get_backbone(backbone, pretrained=False, num_stacks=2):

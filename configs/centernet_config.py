@@ -10,7 +10,7 @@ Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
 Config.log_prefix = 'CenterNet'
 Config.use_tensorboard = True
-Config.num_classes = 11
+Config.num_classes = 10
 
 # Training Config =========================================
 Config.Train = edict()
@@ -18,18 +18,18 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 1
+Config.Train.batch_size = 4
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
-Config.Train.lr = 1.6e-4
+Config.Train.lr = 2.5e-4
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
 Config.Train.lr_milestones = [60000, 80000]
 
-Config.Train.iter_num = 90000
+Config.Train.iter_num = 100000
 
 # Transforms
 Config.Train.crop_size = (512, 512)
@@ -37,20 +37,20 @@ Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.transforms = Compose([
     ToTensor(),
-    # HorizontalFlip(),
-    # RandomCrop(Config.Train.crop_size),
+    HorizontalFlip(),
+    RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
     MaskIgnore(Config.Train.mean)
 ])
 
 # Log params.
 Config.Train.print_interval = 20
-Config.Train.checkpoint_interval = 30000
+Config.Train.checkpoint_interval = 15000
 
 
 # Validation Config =========================================
 Config.Val = edict()
-Config.Val.model_path = './log/model.pth'
+Config.Val.model_path = './log/ckp-89999.pth'
 Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1

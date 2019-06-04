@@ -206,5 +206,5 @@ def hourglass_net(num_stacks=2):
     :return: model
     """
     model = HourglassNet(num_stacks=num_stacks)
-    # model.load_state_dict(torch.load('./hourglass.pth'))
+    model.load_state_dict(torch.load('./hourglass.pth'))
     return model

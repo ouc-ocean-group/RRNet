@@ -97,7 +97,8 @@ class TransToHM(object):
         data_objs = data_n
         height, width = data[0].shape[1], data[0].shape[2]
         # init var
-        hm = np.zeros((11, height // 4, width // 4), dtype=np.float32)
+        # hm = np.zeros((10, height // 4, width // 4), dtype=np.float32)
+        hm = np.zeros((10, height // 2, width // 2), dtype=np.float32)
 
         wh = np.zeros((max_objs, 2), dtype=np.float32)
         reg = np.zeros((max_objs, 2), dtype=np.float32)
@@ -109,13 +110,17 @@ class TransToHM(object):
             bbox = an[0:4]
             bbox[2] += bbox[0]
             bbox[3] += bbox[1]
-            bbox[0]  = bbox[0] // 4
-            bbox[1]  = bbox[1] // 4
-            bbox[2]  = bbox[2] // 4
-            bbox[3]  = bbox[3] // 4
+            # bbox[0]  = bbox[0] // 4
+            bbox[0]  = bbox[0] // 2
+            # bbox[1]  = bbox[1] // 4
+            bbox[1]  = bbox[1] // 2
+            # bbox[2]  = bbox[2] // 4
+            bbox[2]  = bbox[2] // 2
+            # bbox[3]  = bbox[3] // 4
+            bbox[3]  = bbox[3] // 2
 
             # box class (object_category)
-            cls_id = an[5]
+            cls_id = an[5] - 1
 
             # cal and draw heatmap by gaussian
             h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
@@ -132,7 +137,8 @@ class TransToHM(object):
                 # cal wh
                 # wh.append()
                 wh[k] = [1. * w, 1. * h]
-                ind[k] = ct_int[1] * (width // 4)+ ct_int[0]
+                ind[k] = ct_int[1] * (width // 2) + ct_int[0]
+                # ind[k] = ct_int[1] * (width // 4)+ ct_int[0]
                 reg[k] = ct - ct_int
                 reg_mask[k] = 1
         hm=torch.tensor(hm)

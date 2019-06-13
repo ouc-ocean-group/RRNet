@@ -44,13 +44,12 @@ class RandomCrop(object):
     def __call__(self, data):
         assert isinstance(data[0], torch.Tensor)
         assert isinstance(data[1], torch.Tensor)
-
-        h, w = data[0].size()[-2:]
+        img = data[0]
+        h, w = img.size()[-2:]
         if (self.w, self.h) == (w, h):
             return data
         if self.w > w or self.h > h:
-            padded_img = pad(data[0], [0, self.w-w, 0, self.h-h])
-            return padded_img, data[1]
+            img = pad(img, [0, max(self.w-w, 0), 0, max(self.h-h, 0)])
 
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
         crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
@@ -70,8 +69,52 @@ class RandomCrop(object):
             y1 = np.random.randint(min_y1, max_y1) if min_y1 != max_y1 else min_y1
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
             cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
-        cropped_img = F.crop_tensor(data[0], crop_coordinate)
+        cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos
+
+
+class RandomCropNTimes(object):
+    def __init__(self, size, times=4):
+        self.h, self.w = size
+        self.times = times
+
+    def __call__(self, data):
+        assert isinstance(data[0], torch.Tensor)
+        assert isinstance(data[1], torch.Tensor)
+
+        img = data[0]
+        h, w = img.size()[-2:]
+        if (self.w, self.h) == (w, h):
+            imgs = data[0].unsqueeze(0).repeat(self.times, 1, 1, 1)
+            annos = data[1].unsqueeze(0).repeat(self.times, 1, 1)
+            return imgs, annos
+        if self.w > w or self.h > h:
+            img = pad(img, [0, max(self.w-w, 0), 0, max(self.h-h, 0)])
+
+        cropped_imgs, cropped_annoss = [], []
+        for t in range(self.times):
+            rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
+            crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
+            cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
+            if cropped_annos.size(0) == 0:
+                rand_idx = torch.randint(0, data[1].size(0), (1,))
+                include_bbox = data[1][rand_idx, :].squeeze()
+                x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
+                                 include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
+                max_x1_ = min(x1, w-self.w)
+                max_y1_ = min(y1, h-self.h)
+                min_x1_ = max(0, x2-self.w)
+                min_y1_ = max(0, y2-self.h)
+                min_x1, max_x1 = sorted([max_x1_, min_x1_])
+                min_y1, max_y1 = sorted([max_y1_, min_y1_])
+                x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
+                y1 = np.random.randint(min_y1, max_y1) if min_y1 != max_y1 else min_y1
+                crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
+                cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
+            cropped_img = F.crop_tensor(img, crop_coordinate)
+            cropped_imgs.append(cropped_img.unsqueeze(0))
+            cropped_annoss.append(cropped_annos)
+        return cropped_imgs, cropped_annoss
 
 
 class ColorJitter(object):

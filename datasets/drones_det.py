@@ -50,6 +50,8 @@ class DronesDET(Dataset):
     @staticmethod
     def collate_fn(batch):
         max_n = 0
+        if isinstance(batch[0][0], list):
+            batch = [(batch[i][0][k], batch[i][1][k], batch[i][2]) for i in range(len(batch)) for k in range(len(batch[0][0]))]
         for i, batch_data in enumerate(batch):
             max_n = max(max_n, batch_data[1].size(0))
         imgs, annos, names = [], torch.zeros(len(batch), max_n, 8), []

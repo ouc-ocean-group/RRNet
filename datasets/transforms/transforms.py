@@ -37,6 +37,19 @@ class Normalize(object):
         return F.normalize(data[0], self.mean, self.std), data[1]
 
 
+class NormalizeNTimes(object):
+    def __init__(self, mean=(0, 0, 0), std=(1, 1, 1), times=4):
+        self.mean = mean
+        self.std = std
+        self.times = times
+
+    def __call__(self, data):
+        assert len(data[0]) == self.times
+        norm = [F.normalize(data[0][i][0], self.mean, self.std) for i in range(self.times)]
+        annos = data[1]
+        return norm, annos
+
+
 class RandomCrop(object):
     def __init__(self, size):
         self.h, self.w = size
@@ -140,3 +153,21 @@ class MaskIgnore(object):
         assert isinstance(data[1], torch.Tensor)
 
         return F.mask_ignore(data, self.mean, self.ignore_idx)
+
+
+class MaskIgnoreNTimes(object):
+    def __init__(self, mean=(0.485, 0.456, 0.406), ignore_idx=0, times=4):
+        self.mean = mean
+        self.ignore_idx = ignore_idx
+        self.times = times
+
+    def __call__(self, data):
+        assert len(data[0]) == self.times
+        assert len(data[1]) == self.times
+
+        ig_data = [list(F.mask_ignore((data[0][i], data[1][i]), self.mean, self.ignore_idx)) for i in range(self.times)]
+        imgs, annos = [], []
+        for i in range(self.times):
+            imgs.append(ig_data[i][0])
+            annos.append(ig_data[i][1])
+        return imgs, annos

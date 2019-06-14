@@ -18,7 +18,7 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 4
+Config.Train.batch_size = 5
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
@@ -50,7 +50,7 @@ Config.Train.checkpoint_interval = 15000
 
 # Validation Config =========================================
 Config.Val = edict()
-Config.Val.model_path = './log/ckp-89999.pth'
+Config.Val.model_path = './log/ckp-99999.pth'
 Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1
@@ -72,7 +72,7 @@ Config.Model = edict()
 
 Config.Model.backbone = 'hourglass'
 Config.Model.hm_detector = 'centernet_detector'
-Config.Model.wh_detector = 'centernet_detector'
+Config.Model.wh_detector = 'centernet_WH_detector'
 Config.Model.reg_detector = 'centernet_detector'
 Config.Model.num_stacks = 2
 

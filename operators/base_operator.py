@@ -22,7 +22,7 @@ class BaseOperator(object):
         torch.manual_seed(cfg.seed)
         torch.cuda.manual_seed(cfg.seed)
 
-        self.model = DistributedDataParallel(model, device_ids=[self.cfg.Distributed.gpu_id])
+        self.model = DistributedDataParallel(model, find_unused_parameters=True, device_ids=[self.cfg.Distributed.gpu_id])
 
         self.lr_sch = lr_sch
 

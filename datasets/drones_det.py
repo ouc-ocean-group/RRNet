@@ -76,8 +76,8 @@ class DronesDET(Dataset):
         inds = []
         reg_masks = []
         annos, names = torch.zeros(len(batch), max_n, 8), []
-        trans = TransToHM()
-
+        trans = TransToHM_Origin()
+        # trans = TransToHM()
         for i, batch_data in enumerate(batch):
             imgs.append(batch_data[0].unsqueeze(0))
             data_n = batch_data[1].size(0)

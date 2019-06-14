@@ -19,7 +19,7 @@ def soft_nms(dets, sigma=0.5, Nt=0.3, threshold=0.001, method=1):
 
 
 # Original NMS implementation
-def nms(dets, thresh, gpu_id=None):
+def nms(dets, thresh, gpu_id=0):
     if dets.shape[0] == 0:
         return []
     else:
@@ -44,7 +44,7 @@ if __name__ == '__main__':
     # 需要看论文在仔细研究一下
     """
     anchor = np.array(anchor).astype(np.float32)
-    keep = nms(anchor, thresh=0.3, gpu_id=0)
+    keep = nms(anchor, thresh=0.3, gpu=True)
     print(keep)
     """
     [2, 3]

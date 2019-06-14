@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from .load import load_model
+import torch.nn.functional as F
 
 
 class Bottleneck(nn.Module):
@@ -133,6 +134,9 @@ class StageModule(nn.Module):
                 if j == 0:
                     x_fused.append(self.fuse_layers[i][0](x[0]))
                 else:
+                    Upsample = nn.Upsample(size=(self.fuse_layers[i][j](x[j]).size()[2], self.fuse_layers[i][j](x[j]).size()[3]),
+                                                mode='bilinear', align_corners=True)
+                    x_fused[i] = Upsample(x_fused[i])
                     x_fused[i] = x_fused[i] + self.fuse_layers[i][j](x[j])
 
         for i in range(len(x_fused)):
@@ -222,7 +226,7 @@ class HRNet(nn.Module):
         )
 
         # Final layer (final_layer)
-        self.final_layer = nn.Conv2d(c, nof_joints, kernel_size=(1, 1), stride=(1, 1))
+        self.final_layer = nn.Conv2d(c, 17, kernel_size=(1, 1), stride=(1, 1))
 
     def forward(self, x):
         x = self.conv1(x)
@@ -254,9 +258,12 @@ class HRNet(nn.Module):
 
         x = self.stage4(x)
 
-        x = self.final_layer(x[0])
+        # x = self.final_layer(x[0])
+        out = []
+        # output = F.interpolate(x[0], scale_factor=2, mode='bilinear', align_corners=True)
+        out.append(x[0])
 
-        return x
+        return out
 
 
 def hrnetw48(pretrained=False, **kwargs):
@@ -265,7 +272,7 @@ def hrnetw48(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = HRNet(48, 17, 0.1)
+    model = HRNet(48, 10, 0.1)
     if pretrained:
         model = load_model(model, './pose_hrnet_w48_384x288.pth')
     return model
@@ -277,7 +284,7 @@ def hrnetw32(pretrained=False, **kwargs):
     Args:
         pretrained (bool): If True, returns a model pre-trained on ImageNet
     """
-    model = HRNet(32, 17, 0.1)
+    model = HRNet(32, 10, 0.1)
     if pretrained:
         model = load_model(model, './pose_hrnet_w48_384x288.pth')
     return model
@@ -286,9 +293,10 @@ def hrnetw32(pretrained=False, **kwargs):
 # modelpath:'$PAI_DEFAULT_FS_URI/data/models/zhangyu/pose_hrnet_w48_384x288.pth'
 # modelpath:'$PAI_DEFAULT_FS_URI/data/models/zhangyu/pose_hrnet_w32_384x288.pth'
 
+
 if __name__ == '__main__':
     # model = HRNet(48, 17, 0.1)
-    model = hrnetw48(pretrained=True)
+    model = hrnetw48(pretrained=False)
 
     # print(model)
 

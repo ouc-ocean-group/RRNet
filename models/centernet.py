@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from utils.model_tools import get_backbone, get_fpn, get_detector
+from configs.centernet_config import Config
 
 
 class CenterNet(nn.Module):
@@ -30,3 +31,10 @@ class CenterNet(nn.Module):
 
 def build_net(cfg):
     return CenterNet(cfg)
+
+if __name__ == '__main__':
+    cfg = Config
+    a = torch.ones(1, 3, 256, 256)
+    model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
+    hms, whs, regs= model(a)
+    print(hms[1])

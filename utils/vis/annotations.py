@@ -5,7 +5,32 @@ import torch
 CLASS_NAMES = ("ign", "ped", "peo", "byc", "car", "van", "trk", "tcy", "atc", "bus", "mtr", "oth")
 
 
-def visualize(img, annos, classnames=CLASS_NAMES, with_score=False):
+def visualize(img, annos, classnames=CLASS_NAMES):
+    """
+    Mark annotation bounding box on the image.
+    :param img: cv2 image
+    :param annos: array with annotations
+    :param classnames: class name text
+    :return: marked image
+    """
+    img = img.copy()
+    font = cv2.FONT_HERSHEY_DUPLEX
+    colors = load_colors()
+    for anno in annos:
+        if not isinstance(anno, torch.Tensor):
+            anno = anno.strip().split(',')
+        x, y, w, h, score, cls = \
+            int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), anno[4], anno[5]
+        cv2.rectangle(img, (x, y), (x + w, y + h), colors[int(cls)], 1)
+
+    for i in range(len(classnames)):
+        cv2.rectangle(img, (i * 35, 0), ((i+1) * 35, 15), colors[i], thickness=-1)
+        cv2.putText(img, classnames[i], (i * 35 + 5, 13), font, 0.4, (255, 255, 255), 1, False)
+
+    return img
+
+
+def visualize_ctnet(img, annos, classnames=CLASS_NAMES, with_score=True):
     """
     Mark annotation bounding box on the image.
     :param img: cv2 image
@@ -20,39 +45,15 @@ def visualize(img, annos, classnames=CLASS_NAMES, with_score=False):
     for anno in annos:
         if not isinstance(anno, torch.Tensor):
             anno = anno.strip().split(',')
-        x, y, w, h, score, cls = \
-            int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), float(anno[4]), int(anno[5])
+            x, y, w, h, score, cls = \
+                int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), float(anno[4]), int(anno[5])
+        else:
+            x, y, w, h, score, cls = \
+                int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), float(anno[4]), int(anno[5])
+            cls = cls + 1
         cv2.rectangle(img, (x, y), (x + w, y + h), colors[cls], 1)
         if with_score:
             cv2.putText(img, "{:.2}".format(score), (x + 2, y + 6), font, 0.2, colors[cls], 1, False)
-
-    for i in range(len(classnames)):
-        cv2.rectangle(img, (i * 35, 0), ((i+1) * 35, 15), colors[i], thickness=-1)
-        cv2.putText(img, classnames[i], (i * 35 + 5, 13), font, 0.4, (255, 255, 255), 1, False)
-
-    return img
-
-
-def visualize_ctnet(img, annos, classnames=CLASS_NAMES):
-    """
-    Mark annotation bounding box on the image.
-    :param img: cv2 image
-    :param annos: array with annotations
-    :param classnames: class name text
-    :return: marked image
-    """
-    img = img.copy()
-    font = cv2.FONT_HERSHEY_DUPLEX
-    colors = load_colors()
-    for anno in annos:
-        if not isinstance(anno, torch.Tensor):
-            anno = anno.strip().split(',')
-            x, y, w, h, score, cls = \
-                int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), anno[4], anno[5]
-        else:
-            x, y, w, h, score, cls = \
-                int(anno[0]), int(anno[1]), int(anno[2]), int(anno[3]), anno[4], anno[5] + 1
-        cv2.rectangle(img, (x, y), (x + w, y + h), colors[int(cls)], 1)
 
     for i in range(len(classnames)):
         cv2.rectangle(img, (i * 35, 0), ((i+1) * 35, 15), colors[i], thickness=-1)

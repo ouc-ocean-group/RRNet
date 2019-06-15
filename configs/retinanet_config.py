@@ -18,8 +18,8 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 8
-Config.Train.num_workers = 4
+Config.Train.batch_size = 2
+Config.Train.num_workers = 1
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
@@ -36,9 +36,12 @@ Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.transforms = Compose([
     ToTensor(),
     HorizontalFlip(),
-    RandomCrop(Config.Train.crop_size),
-    Normalize(Config.Train.mean, Config.Train.std),
-    MaskIgnore(Config.Train.mean)
+    # RandomCrop(Config.Train.crop_size),
+    # Normalize(Config.Train.mean, Config.Train.std),
+    # MaskIgnore(Config.Train.mean),
+    RandomCropNTimes(Config.Train.crop_size),
+    NormalizeNTimes(Config.Train.mean, Config.Train.std),
+    MaskIgnoreNTimes(Config.Train.mean)
 ])
 
 # Log params.

@@ -62,7 +62,6 @@ def visualize_ctnet(img, annos, classnames=CLASS_NAMES, with_score=True):
     return img
 
 
-
 def load_colors(num=12):
     """
     Generate color maps.

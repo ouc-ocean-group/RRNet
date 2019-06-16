@@ -14,11 +14,9 @@ from .base_operator import BaseOperator
 
 from datasets import make_ctnet_dataloader
 from utils.vis.logger import Logger
-from modules.anchor import Anchors
-from datasets.transforms.functional import denormalize, gaussian_radius, draw_umich_gaussian
+from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize_ctnet, visualize
 from ext.nms.nms_wrapper import nms
-
 
 
 class CenterNetOperator(BaseOperator):
@@ -27,17 +25,15 @@ class CenterNetOperator(BaseOperator):
 
         model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
 
-        # self.optimizer = optim.SGD(model.parameters(), lr=cfg.Train.lr, momentum=cfg.Train.momentum, weight_decay=cfg.Train.weight_decay)
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 
         self.training_loader, self.validation_loader = make_ctnet_dataloader(cfg)
 
-        super(CenterNetOperator, self).__init__(
-            cfg=self.cfg, model=model, lr_sch=self.lr_sch)
+        super(CenterNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
-        # TODO change it to our class
+        # TODO: change it to our class
         self.focal_loss = FocalLoss()
         self.l1_loss = RegL1Loss()
 
@@ -45,7 +41,7 @@ class CenterNetOperator(BaseOperator):
 
     def criterion(self, outs, annos):
         hms, whs, regs = outs
-        t_hms, t_whs, t_regs, t_inds, t_reg_masks=annos
+        t_hms, t_whs, t_regs, t_inds, t_reg_masks = annos
         hm_loss, wh_loss, off_loss = 0, 0, 0
         for s in range(self.cfg.Model.num_stacks):
             hm = hms[s]
@@ -80,13 +76,11 @@ class CenterNetOperator(BaseOperator):
             self.optimizer.zero_grad()
 
             try:
-                # imgs, annos = next(training_loader)
                 imgs, hms, whs, regs, inds, reg_masks, gt, names = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
-                # imgs, annos = next(training_loader)
                 imgs, hms, whs, regs, inds, reg_masks, gt, names = next(training_loader)
 
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
@@ -95,13 +89,14 @@ class CenterNetOperator(BaseOperator):
             regs = regs.cuda(self.cfg.Distributed.gpu_id)
             inds = inds.cuda(self.cfg.Distributed.gpu_id)
             reg_masks = reg_masks.cuda(self.cfg.Distributed.gpu_id)
-            # gt = gt.cuda(self.cfg.Distributed.gpu_id)
+
             annos = hms, whs, regs, inds, reg_masks
+
             outs = self.model(imgs)
-            # annos= self.trans_anns(imgs,annos)
+
             hm_loss, wh_loss, off_loss = self.criterion(outs, annos)
+
             loss = hm_loss + (0.1 * wh_loss) + off_loss
-            # TODO if here use loss.mean()
             loss.backward()
             self.optimizer.step()
 
@@ -122,12 +117,13 @@ class CenterNetOperator(BaseOperator):
 
                     img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
                     pred_bbox = self.ctnet_transform_bbox(outs).cpu()
+
                     nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
                     nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
                     nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
                     keep_idx = nms(nms_bbox, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
                     pred_bbox = pred_bbox[keep_idx]
-                    # pred_bbox = self.transform_bbox(outs[1][0], outs[0][0]).cpu()
+
                     vis_img = visualize_ctnet(img, pred_bbox)
                     vis_gt_img = visualize(img, gt[0])
                     vis_img = torch.from_numpy(vis_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
@@ -143,13 +139,11 @@ class CenterNetOperator(BaseOperator):
 
                     print('lr: %g' % self.lr_sch.get_lr()[0])
 
-
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                         step == self.cfg.Train.iter_num - 1:
                     self.save_ckp(self.model.module, step, logger.log_dir)
 
-
-    def ctnet_transform_bbox(self, outs,  K=850):
+    def ctnet_transform_bbox(self, outs, K=850):
         heat = outs[0][1]
         wh = outs[1][1]
         reg = outs[2][1]
@@ -170,7 +164,6 @@ class CenterNetOperator(BaseOperator):
             ys = ys.view(batch, K, 1) + 0.5
         wh = self._tranpose_and_gather_feat(wh, inds)
 
-
         wh = wh.view(batch, K, 2)
         clses = clses.view(batch, K, 1).float()
         scores = scores.view(batch, K, 1)
@@ -187,7 +180,6 @@ class CenterNetOperator(BaseOperator):
         # pred1 = pred[:, 4] >= 0.5 #Score Threshhold
         # pred = pred[pred1]
         return pred
-
 
     def _tranpose_and_gather_feat(self, feat, ind):
         feat = feat.permute(0, 2, 3, 1).contiguous()

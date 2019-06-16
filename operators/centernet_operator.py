@@ -4,7 +4,6 @@ from models.centernet import CenterNet
 from utils.metrics.metrics import evaluate_results
 from modules.loss.focalloss2 import FocalLoss
 import numpy as np
-import math
 from modules.loss.regl1loss import RegL1Loss
 import torch
 import torch.nn as nn

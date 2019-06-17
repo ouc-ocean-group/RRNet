@@ -242,7 +242,7 @@ class CenterNetOperator(BaseOperator):
             for i in range(pred_bbox.size()[0]):
                 bbox = pred_bbox[i]
                 line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
-                    int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]),
+                    int(bbox[0]), int(bbox[1]), int(bbox[2])-int(bbox[0]), int(bbox[3])-int(bbox[1]),
                     float(bbox[4]), int(bbox[5] + 1)
                 )
                 f.write(line)
@@ -256,39 +256,27 @@ class CenterNetOperator(BaseOperator):
         step = 0
 
         self.validation_loader.sampler.set_epoch(epoch)
-        gt_dir = os.path.join(self.cfg.data_root, 'val', 'annotations')
         with torch.no_grad():
             for data in self.validation_loader:
                 step += 1
-                imgs, hms, whs, regs, inds, reg_masks, gt, names = data
+                imgs, annos, hms, whs, inds, offsets, reg_masks, names = data
                 imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
 
                 outs = self.model(imgs)
-                pred_bbox = self.ctnet_transform_bbox(outs).cpu()
 
-                # NMS
+                hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
+                pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
-                nms_bbox = pred_bbox[:, :5].detach().clone().numpy()
-                nms_bbox[:, 2] = nms_bbox[:, 0] + nms_bbox[:, 2]
-                nms_bbox[:, 3] = nms_bbox[:, 1] + nms_bbox[:, 3]
-                keep_idx = nms(nms_bbox, thresh=0.8, gpu_id=self.cfg.Distributed.gpu_id)
-                pred_bbox = pred_bbox[keep_idx]
+                # Do nms
+                pred_bbox1 = self._ext_nms(pred_bbox1)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
-                self.save_result(file_path, pred_bbox)
+                self.save_result(file_path, pred_bbox1)
                 file_path = os.path.join('./result/', names[0] + '.txt')
-                self.save_result(file_path, pred_bbox)
+                self.save_result(file_path, pred_bbox1)
 
-                img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
-                vis_img = visualize(img, pred_bbox)
-                cv2.imwrite('./' + names[0] + '.jpg', vis_img)
-                evaluate_results('./result/', gt_dir)
-                os.remove(file_path)
-                print(names[0])
-
-                del imgs
                 del outs
-                del pred_bbox
+                del pred_bbox1
                 if self.main_proc_flag:
                     print('Step : %d / %d' % (step, len(self.validation_loader)))
             print('Done !!!')

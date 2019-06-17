@@ -251,15 +251,14 @@ def to_heatmap(data, scale_factor=4, cls_num=10):
     ct = torch.cat(((annos[:, 0:1] + annos[:, 2:3]) / 2., (annos[:, 1:2] + annos[:, 3:4]) / 2.), dim=1)
     ct_int = ct.floor()
     offset = ct - ct_int
-    reg_mask = ((bboxs_h > 0) * (bboxs_w > 0)).unsqueeze(1)
-    ind = ct_int[:, 1] * (w // 4) + ct_int[0]
+    reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
+    ind = ct_int[:, 1:2] * (w // 4) + ct_int[:, 0:1]
 
     radius = gaussian_radius_tensor((bboxs_h.ceil(), bboxs_w.ceil()))
     radius = radius.floor().clamp(min=0)
     for k, cls in enumerate(cls_idx):
         draw_umich_gaussian(hm[cls.long().item()], ct_int[k], radius[k])
-
-    return data[0], hm, wh, ind, offset, reg_mask
+    return data[0], data[1], hm, wh, ind, offset, reg_mask
 
 
 def draw_umich_gaussian_with_ellipse(heatmap, center, radius, k=1, bbox_w=1, bbox_h=1):

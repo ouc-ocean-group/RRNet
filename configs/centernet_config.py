@@ -40,7 +40,8 @@ Config.Train.transforms = Compose([
     HorizontalFlip(),
     RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
-    MaskIgnore(Config.Train.mean)
+    MaskIgnore(Config.Train.mean),
+    ToHeatmap(scale_factor=4)
 ])
 
 # Log params.

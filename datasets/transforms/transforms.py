@@ -3,9 +3,7 @@ import torch
 from torch.nn.functional import pad
 import PIL
 import numpy as np
-import functional as F
-import math
-import cv2
+from . import functional as F
 from torchvision.transforms import Compose
 
 
@@ -181,5 +179,5 @@ class ToHeatmap(object):
         self.cls_num = cls_num
 
     def __call__(self, data):
-        img, hm, wh, ind, offset, reg_mask = F.to_heatmap(data, self.scale_factor, self.cls_num)
-        return img, hm, wh, ind, offset, reg_mask
+        img, annos, hm, wh, ind, offset, reg_mask = F.to_heatmap(data, self.scale_factor, self.cls_num)
+        return img, annos, hm, wh, ind, offset, reg_mask

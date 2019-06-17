@@ -11,10 +11,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 from .base_operator import BaseOperator
 
-from datasets import make_ctnet_dataloader
+from datasets import make_dataloader
 from utils.vis.logger import Logger
 from datasets.transforms.functional import denormalize
-from utils.vis.annotations import visualize_ctnet, visualize
+from utils.vis.annotations import visualize
 from ext.nms.nms_wrapper import nms
 
 
@@ -28,7 +28,7 @@ class CenterNetOperator(BaseOperator):
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 
-        self.training_loader, self.validation_loader = make_ctnet_dataloader(cfg)
+        self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='ctnet')
 
         super(CenterNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
@@ -75,12 +75,12 @@ class CenterNetOperator(BaseOperator):
             self.optimizer.zero_grad()
 
             try:
-                imgs, hms, whs, regs, inds, reg_masks, gt, names = next(training_loader)
+                imgs, annos, hms, whs, regs, inds, reg_masks, names = next(training_loader)
             except StopIteration:
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
-                imgs, hms, whs, regs, inds, reg_masks, gt, names = next(training_loader)
+                imgs, annos, hms, whs, regs, inds, reg_masks, names = next(training_loader)
 
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
             hms = hms.cuda(self.cfg.Distributed.gpu_id)

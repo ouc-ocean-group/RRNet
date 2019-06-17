@@ -3,7 +3,7 @@ import torch
 from torch.nn.functional import pad
 import PIL
 import numpy as np
-from . import functional as F
+import functional as F
 import math
 import cv2
 from torchvision.transforms import Compose
@@ -64,7 +64,7 @@ class RandomCrop(object):
         if (self.w, self.h) == (w, h):
             return data
         if self.w > w or self.h > h:
-            img = pad(img, [0, max(self.w-w, 0), 0, max(self.h-h, 0)])
+            img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
 
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
         crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
@@ -74,10 +74,10 @@ class RandomCrop(object):
             include_bbox = data[1][rand_idx, :].squeeze()
             x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
                              include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
-            max_x1_ = min(x1, w-self.w)
-            max_y1_ = min(y1, h-self.h)
-            min_x1_ = max(0, x2-self.w)
-            min_y1_ = max(0, y2-self.h)
+            max_x1_ = min(x1, w - self.w)
+            max_y1_ = min(y1, h - self.h)
+            min_x1_ = max(0, x2 - self.w)
+            min_y1_ = max(0, y2 - self.h)
             min_x1, max_x1 = sorted([max_x1_, min_x1_])
             min_y1, max_y1 = sorted([max_y1_, min_y1_])
             x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
@@ -104,7 +104,7 @@ class RandomCropNTimes(object):
             annos = data[1].unsqueeze(0).repeat(self.times, 1, 1)
             return imgs, annos
         if self.w > w or self.h > h:
-            img = pad(img, [0, max(self.w-w, 0), 0, max(self.h-h, 0)])
+            img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
 
         cropped_imgs, cropped_annoss = [], []
         for t in range(self.times):
@@ -116,10 +116,10 @@ class RandomCropNTimes(object):
                 include_bbox = data[1][rand_idx, :].squeeze()
                 x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
                                  include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
-                max_x1_ = min(x1, w-self.w)
-                max_y1_ = min(y1, h-self.h)
-                min_x1_ = max(0, x2-self.w)
-                min_y1_ = max(0, y2-self.h)
+                max_x1_ = min(x1, w - self.w)
+                max_y1_ = min(y1, h - self.h)
+                min_x1_ = max(0, x2 - self.w)
+                min_y1_ = max(0, y2 - self.h)
                 min_x1, max_x1 = sorted([max_x1_, min_x1_])
                 min_y1, max_y1 = sorted([max_y1_, min_y1_])
                 x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
@@ -175,178 +175,11 @@ class MaskIgnoreNTimes(object):
         return imgs, annos
 
 
-def get_dir(src_point, rot_rad):
-    sn, cs = np.sin(rot_rad), np.cos(rot_rad)
+class ToHeatmap(object):
+    def __init__(self, scale_factor=4, cls_num=10):
+        self.scale_factor = scale_factor
+        self.cls_num = cls_num
 
-    src_result = [0, 0]
-    src_result[0] = src_point[0] * cs - src_point[1] * sn
-    src_result[1] = src_point[0] * sn + src_point[1] * cs
-
-    return src_result
-
-
-def get_3rd_point(a, b):
-    direct = a - b
-    return b + np.array([-direct[1], direct[0]], dtype=np.float32)
-
-
-def get_affine_transform(center,
-                         scale,
-                         rot,
-                         output_size,
-                         shift=np.array([0, 0], dtype=np.float32),
-                         inv=0):
-    if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
-        scale = np.array([scale, scale], dtype=np.float32)
-
-    scale_tmp = scale
-    src_w = scale_tmp[0]
-    dst_w = output_size[0]
-    dst_h = output_size[1]
-
-    rot_rad = np.pi * rot / 180
-    src_dir = get_dir([0, src_w * -0.5], rot_rad)
-    dst_dir = np.array([0, dst_w * -0.5], np.float32)
-
-    src = np.zeros((3, 2), dtype=np.float32)
-    dst = np.zeros((3, 2), dtype=np.float32)
-    src[0, :] = center + scale_tmp * shift
-    src[1, :] = center + src_dir + scale_tmp * shift
-    dst[0, :] = [dst_w * 0.5, dst_h * 0.5]
-    dst[1, :] = np.array([dst_w * 0.5, dst_h * 0.5], np.float32) + dst_dir
-
-    src[2:, :] = get_3rd_point(src[0, :], src[1, :])
-    dst[2:, :] = get_3rd_point(dst[0, :], dst[1, :])
-
-    if inv:
-        trans = cv2.getAffineTransform(np.float32(dst), np.float32(src))
-    else:
-        trans = cv2.getAffineTransform(np.float32(src), np.float32(dst))
-
-    return trans
-
-
-def affine_transform(pt, t):
-    new_pt = np.array([pt[0], pt[1], 1.], dtype=np.float32).T
-    new_pt = np.dot(t, new_pt)
-    return new_pt[:2]
-
-
-class TransToHM(object):
-
-    def __call__(self, data, max_n, data_n):
-        # trans anns to (hm,wh,reg) format
-        max_objs = max_n
-        data_objs = data_n
-        height, width = data[0].shape[1], data[0].shape[2]
-        # init var
-        hm = np.zeros((10, height // 4, width // 4), dtype=np.float32)
-        # hm = np.zeros((10, height // 2, width // 2), dtype=np.float32)
-
-        wh = np.zeros((max_objs, 2), dtype=np.float32)
-        reg = np.zeros((max_objs, 2), dtype=np.float32)
-        ind = np.zeros((max_objs), dtype=np.int64)
-        reg_mask = np.zeros((max_objs), dtype=np.uint8)
-        for k in range(data_n):
-            an = data[1][k]
-            # select bbox change box(x,y,w,h) to (x1,y1,x2,y2)
-            bbox = an[0:4]
-            bbox[2] += bbox[0]
-            bbox[3] += bbox[1]
-            bbox[0]  = bbox[0] // 4
-            # bbox[0]  = bbox[0] // 2
-            bbox[1]  = bbox[1] // 4
-            # bbox[1]  = bbox[1] // 2
-            bbox[2]  = bbox[2] // 4
-            # bbox[2]  = bbox[2] // 2
-            bbox[3]  = bbox[3] // 4
-            # bbox[3]  = bbox[3] // 2
-
-            # box class (object_category)
-            cls_id = an[5] - 1
-
-            # cal and draw heatmap by gaussian
-            h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
-            if h > 0 and w > 0:
-                # draw heatmap
-                radius = F.gaussian_radius((math.ceil(h), math.ceil(w)))
-                radius = max(0, int(radius))
-                ct = np.array(
-                    [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
-                ct_int = ct.astype(np.int32)
-
-                F.draw_umich_gaussian(hm[int(cls_id)], ct_int, radius)
-                # F.draw_umich_gaussian_withEllipse(hm[int(cls_id)], ct_int, radius, 1, w, h)
-                # cal wh
-                # wh.append()
-                wh[k] = [1. * w, 1. * h]
-                # ind[k] = ct_int[1] * (width // 2) + ct_int[0]
-                ind[k] = ct_int[1] * (width // 4)+ ct_int[0]
-                reg[k] = ct - ct_int
-                reg_mask[k] = 1
-        hm=torch.tensor(hm)
-        wh=torch.tensor(wh)
-        ind=torch.tensor(ind)
-        reg=torch.tensor(reg)
-        reg_mask=torch.tensor(reg_mask)
-        return data[0], hm, wh, ind, reg, reg_mask
-
-
-class TransToHM_Origin(object):
-
-    def __call__(self, data, max_n, data_n):
-        # trans anns to (hm,wh,reg) format
-        max_objs = max_n
-        data_objs = data_n
-        height, width = data[0].shape[1], data[0].shape[2]
-        c = np.array([data[0].shape[2] / 2., data[0].shape[1] / 2.], dtype=np.float32)
-        s = np.array([data[0].shape[2], data[0].shape[1]], dtype=np.float32)
-        trans_output = get_affine_transform(c, s, 0, [width // 4, height // 4])
-        # init var
-        hm = np.zeros((10, height // 4, width // 4), dtype=np.float32)
-        # hm = np.zeros((10, height // 2, width // 2), dtype=np.float32)
-
-        wh = np.zeros((max_objs, 2), dtype=np.float32)
-        reg = np.zeros((max_objs, 2), dtype=np.float32)
-        ind = np.zeros((max_objs), dtype=np.int64)
-        reg_mask = np.zeros((max_objs), dtype=np.uint8)
-        for k in range(data_n):
-            an = data[1][k]
-            # select bbox change box(x,y,w,h) to (x1,y1,x2,y2)
-            bbox = np.array(an[0:4], dtype=np.float32)
-            bbox[2] += bbox[0]
-            bbox[3] += bbox[1]
-
-            bbox[:2] = affine_transform(bbox[:2], trans_output)
-            bbox[2:] = affine_transform(bbox[2:], trans_output)
-            bbox[[0, 2]] = np.clip(bbox[[0, 2]], 0, width // 4 - 1)
-            bbox[[1, 3]] = np.clip(bbox[[1, 3]], 0, height // 4 - 1)
-
-            # box class (object_category)
-            cls_id = an[5] - 1
-
-            # cal and draw heatmap by gaussian
-            h, w = bbox[3] - bbox[1], bbox[2] - bbox[0]
-            if h > 0 and w > 0:
-                # draw heatmap
-                radius = F.gaussian_radius((math.ceil(h), math.ceil(w)))
-                radius = max(0, int(radius))
-                ct = np.array(
-                    [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2], dtype=np.float32)
-                ct_int = ct.astype(np.int32)
-
-                F.draw_umich_gaussian(hm[int(cls_id)], ct_int, radius)
-                # F.draw_umich_gaussian_withEllipse(hm[int(cls_id)], ct_int, radius, 1, w, h)
-                # cal wh
-                # wh.append()
-                wh[k] = [1. * w, 1. * h]
-                # ind[k] = ct_int[1] * (width // 2) + ct_int[0]
-                ind[k] = ct_int[1] * (width // 4)+ ct_int[0]
-                reg[k] = ct - ct_int
-                reg_mask[k] = 1
-        hm=torch.tensor(hm)
-        wh=torch.tensor(wh)
-        ind=torch.tensor(ind)
-        reg=torch.tensor(reg)
-        reg_mask=torch.tensor(reg_mask)
-        return data[0], hm, wh, ind, reg, reg_mask
+    def __call__(self, data):
+        img, hm, wh, ind, offset, reg_mask = F.to_heatmap(data, self.scale_factor, self.cls_num)
+        return img, hm, wh, ind, offset, reg_mask

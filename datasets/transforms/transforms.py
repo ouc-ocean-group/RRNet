@@ -62,8 +62,8 @@ class RandomCrop(object):
         if (self.w, self.h) == (w, h):
             return data
         if self.w > w or self.h > h:
-            img = pad(img, [0, max(self.w-w, 0), 0, max(self.h-h, 0)])
-
+            img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
+        h, w = img.size()[-2:]
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
         crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
         cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
@@ -72,10 +72,10 @@ class RandomCrop(object):
             include_bbox = data[1][rand_idx, :].squeeze()
             x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
                              include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
-            max_x1_ = min(x1, w-self.w)
-            max_y1_ = min(y1, h-self.h)
-            min_x1_ = max(0, x2-self.w)
-            min_y1_ = max(0, y2-self.h)
+            max_x1_ = min(x1, w - self.w)
+            max_y1_ = min(y1, h - self.h)
+            min_x1_ = max(0, x2 - self.w)
+            min_y1_ = max(0, y2 - self.h)
             min_x1, max_x1 = sorted([max_x1_, min_x1_])
             min_y1, max_y1 = sorted([max_y1_, min_y1_])
             x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
@@ -102,8 +102,8 @@ class RandomCropNTimes(object):
             annos = data[1].unsqueeze(0).repeat(self.times, 1, 1)
             return imgs, annos
         if self.w > w or self.h > h:
-            img = pad(img, [0, max(self.w-w, 0), 0, max(self.h-h, 0)])
-
+            img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
+        h, w = img.size()[-2:]
         cropped_imgs, cropped_annoss = [], []
         for t in range(self.times):
             rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
@@ -114,10 +114,10 @@ class RandomCropNTimes(object):
                 include_bbox = data[1][rand_idx, :].squeeze()
                 x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
                                  include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
-                max_x1_ = min(x1, w-self.w)
-                max_y1_ = min(y1, h-self.h)
-                min_x1_ = max(0, x2-self.w)
-                min_y1_ = max(0, y2-self.h)
+                max_x1_ = min(x1, w - self.w)
+                max_y1_ = min(y1, h - self.h)
+                min_x1_ = max(0, x2 - self.w)
+                min_y1_ = max(0, y2 - self.h)
                 min_x1, max_x1 = sorted([max_x1_, min_x1_])
                 min_y1, max_y1 = sorted([max_y1_, min_y1_])
                 x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
@@ -171,3 +171,13 @@ class MaskIgnoreNTimes(object):
             imgs.append(ig_data[i][0])
             annos.append(ig_data[i][1])
         return imgs, annos
+
+
+class ToHeatmap(object):
+    def __init__(self, scale_factor=4, cls_num=10):
+        self.scale_factor = scale_factor
+        self.cls_num = cls_num
+
+    def __call__(self, data):
+        img, annos, hm, wh, ind, offset, reg_mask = F.to_heatmap(data, self.scale_factor, self.cls_num)
+        return img, annos, hm, wh, ind, offset, reg_mask

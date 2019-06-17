@@ -7,6 +7,7 @@
 |filename|introduction|
 |:----|:-----:|
 |retinanet.py|the retinanet for ICCV|
+|centernet.py|the centernet for ICCV|
 
 ## Detail
 
@@ -26,4 +27,20 @@ This is main retinaNet, and it has 4 parts
 
 ##### Params
 - **cfg** use  cfg.model
+
+### centernet.py
+
+#### ClassName: CenterNet()
+
+##### Introduction
+
+This is CenterNet, and it has 4 parts
+- backbone
+- hm_detector
+- wh_detector
+- reg_detector(offset)
+
+##### Params
+- **cfg** use  cfg.model
+
     

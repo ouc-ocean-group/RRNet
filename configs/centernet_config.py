@@ -18,7 +18,7 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 5
+Config.Train.batch_size = 1
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
@@ -35,17 +35,18 @@ Config.Train.iter_num = 100000
 Config.Train.crop_size = (512, 512)
 Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
+Config.Train.scale_factor = 4
 Config.Train.transforms = Compose([
     ToTensor(),
-    HorizontalFlip(),
-    RandomCrop(Config.Train.crop_size),
-    Normalize(Config.Train.mean, Config.Train.std),
     MaskIgnore(Config.Train.mean),
-    ToHeatmap(scale_factor=4)
+    # HorizontalFlip(),
+    # RandomCrop(Config.Train.crop_size),
+    Normalize(Config.Train.mean, Config.Train.std),
+    ToHeatmap(scale_factor=Config.Train.scale_factor)
 ])
 
 # Log params.
-Config.Train.print_interval = 20
+Config.Train.print_interval = 5
 Config.Train.checkpoint_interval = 15000
 
 

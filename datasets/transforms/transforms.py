@@ -63,7 +63,7 @@ class RandomCrop(object):
             return data
         if self.w > w or self.h > h:
             img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
-
+        h, w = img.size()[-2:]
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
         crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
         cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
@@ -103,7 +103,7 @@ class RandomCropNTimes(object):
             return imgs, annos
         if self.w > w or self.h > h:
             img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
-
+        h, w = img.size()[-2:]
         cropped_imgs, cropped_annoss = [], []
         for t in range(self.times):
             rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)

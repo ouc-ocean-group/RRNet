@@ -253,7 +253,6 @@ def to_heatmap(data, scale_factor=4, cls_num=10):
     offset = ct - ct_int
     reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
     ind = ct_int[:, 1:2] * (w // 4) + ct_int[:, 0:1]
-
     radius = gaussian_radius_tensor((bboxs_h.ceil(), bboxs_w.ceil()))
     radius = radius.floor().clamp(min=0)
     for k, cls in enumerate(cls_idx):

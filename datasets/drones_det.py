@@ -3,7 +3,6 @@ import pandas as pd
 from PIL import Image
 from torch.utils.data import Dataset
 import re
-import torch
 from datasets.transforms import *
 
 
@@ -29,6 +28,7 @@ class DronesDET(Dataset):
 
     def __getitem__(self, item):
         name = self.mdf[item]
+        name = '0000204_01028_d_0000194'
 
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
@@ -81,8 +81,6 @@ class DronesDET(Dataset):
             offsets[i, :batch_data[5].size(0), :] = batch_data[5]
             reg_masks[i, :batch_data[6].size(0), :] = batch_data[6]
             names.append(batch_data[7])
-
         imgs = torch.cat(imgs)
         hms = torch.cat(hms)
         return imgs, annos, hms, whs, inds, offsets, reg_masks, names
-

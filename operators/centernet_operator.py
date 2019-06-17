@@ -2,7 +2,7 @@ import cv2
 import os
 from models.centernet import CenterNet
 from utils.metrics.metrics import evaluate_results
-from modules.loss.focalloss2 import FocalLoss
+from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
 import torch
@@ -32,7 +32,7 @@ class CenterNetOperator(BaseOperator):
         super(CenterNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
         # TODO: change it to our class
-        self.focal_loss = FocalLoss()
+        self.focal_loss = FocalLossHM()
         self.l1_loss = RegL1Loss()
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0

@@ -155,29 +155,6 @@ def gaussian_radius(det_size, min_overlap=0.7):
     a1 = 1
     b1 = (height + width)
     c1 = width * height * (1 - min_overlap) / (1 + min_overlap)
-    sq1 = np.sqrt(b1 ** 2 - 4 * a1 * c1)
-    r1 = (b1 + sq1) / 2
-
-    a2 = 4
-    b2 = 2 * (height + width)
-    c2 = (1 - min_overlap) * width * height
-    sq2 = np.sqrt(b2 ** 2 - 4 * a2 * c2)
-    r2 = (b2 + sq2) / 2
-
-    a3 = 4 * min_overlap
-    b3 = -2 * min_overlap * (height + width)
-    c3 = (min_overlap - 1) * width * height
-    sq3 = np.sqrt(b3 ** 2 - 4 * a3 * c3)
-    r3 = (b3 + sq3) / 2
-    return min(r1, r2, r3)
-
-
-def gaussian_radius_tensor(det_size, min_overlap=0.7):
-    height, width = det_size
-
-    a1 = 1
-    b1 = (height + width)
-    c1 = width * height * (1 - min_overlap) / (1 + min_overlap)
     sq1 = (b1 ** 2 - 4 * a1 * c1).sqrt()
     r1 = (b1 + sq1) / 2.
 
@@ -253,7 +230,7 @@ def to_heatmap(data, scale_factor=4, cls_num=10):
     offset = ct - ct_int
     reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
     ind = ct_int[:, 1:2] * (w // 4) + ct_int[:, 0:1]
-    radius = gaussian_radius_tensor((bboxs_h.ceil(), bboxs_w.ceil()))
+    radius = gaussian_radius((bboxs_h.ceil(), bboxs_w.ceil()))
     radius = radius.floor().clamp(min=0)
     for k, cls in enumerate(cls_idx):
         draw_umich_gaussian(hm[cls.long().item()], ct_int[k], radius[k])

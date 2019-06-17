@@ -28,7 +28,6 @@ class DronesDET(Dataset):
 
     def __getitem__(self, item):
         name = self.mdf[item]
-        name = '0000204_01028_d_0000194'
 
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))

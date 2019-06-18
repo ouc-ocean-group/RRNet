@@ -528,7 +528,7 @@ def hrnetv2(pretrained=False):
     """
     model = HighResolutionNet(extra)
     if pretrained:
-        pretrained_dict = torch.load('F:/models/hrnetv2_w40_imagenet_pretrained.pth')
+        pretrained_dict = torch.load('./hrnetv2_w40_imagenet_pretrained.pth')
         model_dict = net.state_dict()
         state_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict.keys()}
         net.load_state_dict(state_dict)

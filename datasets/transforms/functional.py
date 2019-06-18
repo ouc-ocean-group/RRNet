@@ -249,7 +249,7 @@ def draw_umich_gaussian_with_ellipse(heatmap, center, radius, k=1, bbox_w=1, bbo
         diameter_w = 1
     elif diameter_w % 2 == 0:
         diameter_w = diameter_w + 1
-    gaussian = gaussian2D((diameter_h, diameter_w), sigma=(diameter_w + diameter_h) / 12)
+    gaussian = gaussian2d((diameter_h, diameter_w), sigma=(diameter_w + diameter_h) / 12)
 
     x, y = int(center[0]), int(center[1])
 

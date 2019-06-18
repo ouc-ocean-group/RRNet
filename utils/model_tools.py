@@ -1,6 +1,7 @@
 from backbones.resnet import resnet10, resnet50, resnet101
 from backbones.hourglass import hourglass_net
 from backbones.hrnet import hrnetw48
+from backbones.hrnetv2 import hrnetv2
 from modules.fpn import FPN
 from modules.nas.fpn import NASSuperFPN, NASSearchedFPN
 from detectors.centernet_detector import CenterNetDetector
@@ -29,6 +30,8 @@ def get_backbone(backbone, pretrained=False, num_stacks=2):
         return hourglass_net(num_stacks=num_stacks)
     elif backbone == 'hrnet':
         return hrnetw48(pretrained=True)
+    elif backbone == 'hrnetv2':
+        return hrnetv2(pretrained=True)
     else:
         return resnet50(pretrained=pretrained)
 

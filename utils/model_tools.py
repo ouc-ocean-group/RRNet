@@ -2,12 +2,6 @@ from backbones.resnet import resnet10, resnet50, resnet101
 from backbones.hourglass import hourglass_net
 from backbones.hrnet import hrnetw48
 from backbones.hrnetv2 import hrnetv2
-from modules.fpn import FPN
-from modules.nas.fpn import NASSuperFPN, NASSearchedFPN
-from detectors.centernet_detector import CenterNetDetector
-from detectors.centernet_detector import CenterNet_WH_Detector
-from detectors.centernet_detector import CenterNet_HM_Detector
-from detectors.retinanet_detector import RetinaNetDetector
 # from backbones.trident import trident_res50v2, trident_res50v2_deform, trident_res101v2, trident_res101v2_deform
 
 
@@ -34,27 +28,3 @@ def get_backbone(backbone, pretrained=False, num_stacks=2):
         return hrnetv2(pretrained=True)
     else:
         return resnet50(pretrained=pretrained)
-
-
-def get_fpn(fp_name, cfg=None):
-    if fp_name == 'fpn':
-        return FPN()
-    elif fp_name == 'nasfpn':
-        return NASSuperFPN(cfg)
-    elif fp_name == 'searchedfpn':
-        return NASSearchedFPN(cfg)
-    else:
-        return FPN()
-
-
-def get_detector(det_name, planes, num_stacks=2, hm=False):
-    if det_name == 'retinanet_detector':
-        return RetinaNetDetector(planes)
-    elif det_name == 'centernet_detector':
-        return CenterNetDetector(planes, hm=hm, num_stacks=num_stacks)
-    elif det_name == 'centernet_WH_detector':
-        return CenterNet_WH_Detector(planes, hm=hm, num_stacks=num_stacks)
-    elif det_name == 'centernet_HM_detector':
-        return CenterNet_HM_Detector(planes, hm=hm, num_stacks=num_stacks)
-    else:
-        return RetinaNetDetector(planes)

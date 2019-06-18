@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-from utils.model_tools import get_backbone, get_fpn, get_detector
+from utils.model_tools import get_backbone
+from detectors.centernet_detector import CenterNetDetector
 from configs.centernet_config import Config
 
 
@@ -10,9 +11,9 @@ class CenterNet(nn.Module):
         self.num_stacks = cfg.Model.num_stacks
         self.num_classes = cfg.num_classes
         self.backbone = get_backbone(cfg.Model.backbone, num_stacks=self.num_stacks)
-        self.hm = get_detector(cfg.Model.hm_detector, cfg.num_classes, num_stacks=self.num_stacks, hm=True)
-        self.wh = get_detector(cfg.Model.wh_detector, 2, num_stacks=self.num_stacks)
-        self.reg = get_detector(cfg.Model.reg_detector, 2, num_stacks=self.num_stacks)
+        self.hm = CenterNetDetector(planes=cfg.num_classes, num_stacks=self.num_stacks, hm=True)
+        self.wh = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
+        self.reg = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
 
     def forward(self, input):
         pre_feats = self.backbone(input)
@@ -32,9 +33,10 @@ class CenterNet(nn.Module):
 def build_net(cfg):
     return CenterNet(cfg)
 
+
 if __name__ == '__main__':
     cfg = Config
     a = torch.ones(1, 3, 256, 256)
     model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
-    hms, whs, regs= model(a)
+    hms, whs, regs = model(a)
     print(hms[1])

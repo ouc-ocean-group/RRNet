@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-from utils.model_tools import get_backbone, get_fpn, get_detector
+from utils.model_tools import get_backbone
+from modules.fpn import FPN
+from detectors.retinanet_detector import RetinaNetDetector
 
 
 class RetinaNet(nn.Module):
@@ -9,9 +11,9 @@ class RetinaNet(nn.Module):
         self.num_anchors = cfg.Model.num_anchors
         self.num_classes = cfg.num_classes
         self.backbone = get_backbone(cfg.Model.backbone, pretrained=cfg.Train.pretrained)
-        self.fpn = get_fpn(cfg.Model.fpn)
-        self.cls = get_detector(cfg.Model.cls_detector, self.num_anchors * self.num_classes)
-        self.loc = get_detector(cfg.Model.loc_detector, self.num_anchors * 4)
+        self.fpn = FPN()
+        self.cls = RetinaNetDetector(planes=self.num_anchors * self.num_classes)
+        self.loc = RetinaNetDetector(planes=self.num_anchors * 4)
 
     def forward(self, input):
         loc_pres = []

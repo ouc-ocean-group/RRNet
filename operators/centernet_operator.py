@@ -243,7 +243,7 @@ class CenterNetOperator(BaseOperator):
                 bbox = pred_bbox[i]
                 line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
                     int(bbox[0]), int(bbox[1]), int(bbox[2])-int(bbox[0]), int(bbox[3])-int(bbox[1]),
-                    float(bbox[4]), int(bbox[5] + 1)
+                    float(bbox[4]), int(bbox[5])
                 )
                 f.write(line)
 
@@ -259,7 +259,7 @@ class CenterNetOperator(BaseOperator):
         with torch.no_grad():
             for data in self.validation_loader:
                 step += 1
-                imgs, annos, hms, whs, inds, offsets, reg_masks, names = data
+                imgs, annos, names = data
                 imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
 
                 outs = self.model(imgs)

@@ -23,7 +23,7 @@ def make_dataloader(cfg, collate_fn=None):
     val_loader = DataLoader(val_dataset,
                             batch_size=cfg.Val.batch_size, num_workers=cfg.Val.num_workers,
                             sampler=cfg.Val.sampler(val_dataset) if cfg.Val.sampler else None,
-                            pin_memory=True, collate_fn=collate_fn,
+                            pin_memory=True, collate_fn=train_dataset.collate_fn,
                             shuffle=True if cfg.Val.sampler is None else False)
 
     return train_loader, val_loader

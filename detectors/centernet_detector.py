@@ -35,9 +35,6 @@ class CenterNet_WH_Detector(nn.Module):
         self.stacktwo_conv = BasicCov(3, 256, 256, with_bn=False)
         self.stacktwo_H = HCov(17, 256, 1, with_bn=False)
         self.stacktwo_W = WCov(17, 256, 1, with_bn=False)
-        if self.hm:
-            for heat in self.detect_layer:
-                heat[-1].bias.data.fill_(-2.19)
 
     def forward(self, input, index):
         if index == 0:

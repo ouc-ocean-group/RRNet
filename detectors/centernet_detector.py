@@ -10,7 +10,7 @@ class CenterNetDetector(nn.Module):
         self.num_stacks = num_stacks
         self.detect_layer = nn.ModuleList([nn.Sequential(
             BasicCov(3, 256, 256, with_bn=False),
-            # BasicCov(3, 48, 256, with_bn=False),
+            # BasicCov(3, 40 * (2 ** _), 256, with_bn=False),
             nn.Conv2d(256, planes, (1, 1))
         ) for _ in range(self.num_stacks)
         ])
@@ -28,29 +28,27 @@ class CenterNet_WH_Detector(nn.Module):
         super(CenterNet_WH_Detector, self).__init__()
         self.hm = hm
         self.num_stacks = num_stacks
-        self.stackone_conv = BasicCov(3, 256, 256, with_bn=False)
-        # self.stackone_conv = BasicCov(3, 48, 256, with_bn=False)
-        self.stackone_H = HCov(17, 256, 1, with_bn=False)
-        self.stackone_W = WCov(17, 256, 1, with_bn=False)
-        self.stacktwo_conv = BasicCov(3, 256, 256, with_bn=False)
-        self.stacktwo_H = HCov(17, 256, 1, with_bn=False)
-        self.stacktwo_W = WCov(17, 256, 1, with_bn=False)
+        self.detect_conv_layer = nn.ModuleList([nn.Sequential(
+            BasicCov(3, 256, 256, with_bn=False),
+            # BasicCov(3, 40 * (2 ** _), 256, with_bn=False)
+        ) for _ in range(self.num_stacks)
+        ])
+
+        self.detect_H_layer = nn.ModuleList([nn.Sequential(
+            HCov(17, 256, 1, with_bn=False)
+        ) for _ in range(self.num_stacks)
+        ])
+
+        self.detect_W_layer = nn.ModuleList([nn.Sequential(
+            WCov(17, 256, 1, with_bn=False)
+        ) for _ in range(self.num_stacks)
+        ])
 
     def forward(self, input, index):
-        if index == 0:
-            x = self.stackone_conv(input)
-            H = self.stackone_H(x)
-            W = self.stackone_W(x)
-
-            output = torch.cat((W, H), dim=1)
-        elif index == 1:
-            x = self.stacktwo_conv(input)
-            H = self.stacktwo_H(x)
-            W = self.stacktwo_W(x)
-            output = torch.cat((W, H), dim=1)
-        else:
-            print('W, H error!, index != 0, 1')
-
+        conv = self.detect_conv_layer[index](input)
+        H = self.detect_H_layer[index](conv)
+        W = self.detect_W_layer[index](conv)
+        output = torch.cat((W, H), dim=1)
         # output = F.interpolate(output, scale_factor=2, mode='bilinear', align_corners=True)
         return output
 

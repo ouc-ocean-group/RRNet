@@ -25,6 +25,7 @@ SOFTWARE.
 import logging
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 BatchNorm2d = nn.BatchNorm2d
 
@@ -509,6 +510,11 @@ class HighResolutionNet(nn.Module):
                 x_list.append(y_list[i])
         y_list = self.stage4(x_list)
 
+        scale = 2
+        for i in range(1, 4):
+            y_list[i] = F.interpolate(y_list[i], scale_factor=scale, mode='bilinear', align_corners=True)
+            scale *= 2
+
         return y_list
 
     def train(self, mode=True):
@@ -529,9 +535,9 @@ def hrnetv2(pretrained=False):
     model = HighResolutionNet(extra)
     if pretrained:
         pretrained_dict = torch.load('./hrnetv2_w40_imagenet_pretrained.pth')
-        model_dict = net.state_dict()
+        model_dict = model.state_dict()
         state_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict.keys()}
-        net.load_state_dict(state_dict)
+        model.load_state_dict(state_dict)
     return model
 
 

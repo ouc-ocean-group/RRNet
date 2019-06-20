@@ -3,6 +3,7 @@ from models.centernet import CenterNet
 from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
+from modules.loss.klloss import KLLoss
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -32,16 +33,20 @@ class CenterNetOperator(BaseOperator):
         # TODO: change it to our class
         self.focal_loss = FocalLossHM()
         self.l1_loss = RegL1Loss()
+        self.kl_loss = KLLoss(factor=0.2)
 
-    def criterion(self, outs, annos):
-        hms, whs, offsets = outs
-        t_hms, t_whs, t_inds, t_offsets, t_reg_masks = annos
-        hm_loss, wh_loss, off_loss = 0, 0, 0
+    def criterion(self, outs, targets):
+        hms, whs, offsets, ori_feats, projected_feats = outs
+        t_hms, t_whs, t_inds, t_offsets, t_reg_masks = targets
+        hm_loss, wh_loss, off_loss, kl_loss = 0, 0, 0, 0
 
         for s in range(self.cfg.Model.num_stacks):
             hm = hms[s]
             wh = whs[s]
             offset = offsets[s]
+            ori_feat = ori_feats[s]
+            projected_feat = projected_feats[s]
+
             hm = torch.clamp(torch.sigmoid(hm), min=1e-4, max=1-1e-4)
             # Heatmap Loss
             hm_loss += self.focal_loss(hm, t_hms) / self.cfg.Model.num_stacks
@@ -49,7 +54,11 @@ class CenterNetOperator(BaseOperator):
             wh_loss += self.l1_loss(wh, t_reg_masks, t_inds, t_whs) / self.cfg.Model.num_stacks
             # OffSet Loss
             off_loss += self.l1_loss(offset, t_reg_masks, t_inds, t_offsets) / self.cfg.Model.num_stacks
-        return hm_loss, wh_loss, off_loss
+
+            # Get KL Divers between small object feature and large object feature.
+            kl_loss += self.kl_loss(ori_feat, projected_feat, hm, wh)
+
+        return hm_loss, wh_loss, off_loss, kl_loss
 
     def training_process(self):
         logger = Logger(self.cfg)
@@ -60,8 +69,8 @@ class CenterNetOperator(BaseOperator):
         total_hm_loss = 0
         total_wh_loss = 0
         total_off_loss = 0
+        total_kl_loss = 0
 
-        epoch = 0
         training_loader = iter(self.training_loader)
 
         for step in range(self.cfg.Train.iter_num):
@@ -71,7 +80,6 @@ class CenterNetOperator(BaseOperator):
             try:
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
             except StopIteration:
-                epoch += 1
                 training_loader = iter(self.training_loader)
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
 
@@ -86,9 +94,9 @@ class CenterNetOperator(BaseOperator):
 
             outs = self.model(imgs)
 
-            hm_loss, wh_loss, off_loss = self.criterion(outs, targets)
+            hm_loss, wh_loss, off_loss, kl_loss = self.criterion(outs, targets)
 
-            loss = hm_loss + (0.1 * wh_loss) + off_loss
+            loss = hm_loss + (0.1 * wh_loss) + off_loss + kl_loss
             loss.backward()
             self.optimizer.step()
 
@@ -96,6 +104,7 @@ class CenterNetOperator(BaseOperator):
             total_hm_loss += hm_loss.item()
             total_wh_loss += wh_loss.item()
             total_off_loss += off_loss.item()
+            total_kl_loss += kl_loss.item()
 
             if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
                 # Loss
@@ -106,6 +115,7 @@ class CenterNetOperator(BaseOperator):
                     'train/hm_loss': total_hm_loss / self.cfg.Train.print_interval,
                     'train/wh_loss': total_wh_loss / self.cfg.Train.print_interval,
                     'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
+                    'train/kl_loss': total_kl_loss / self.cfg.Train.print_interval,
                     'train/lr': lr
                 }}
 
@@ -136,6 +146,7 @@ class CenterNetOperator(BaseOperator):
                 total_hm_loss = 0
                 total_wh_loss = 0
                 total_off_loss = 0
+                total_kl_loss = 0
 
             if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                     step == self.cfg.Train.iter_num - 1:
@@ -268,3 +279,4 @@ class CenterNetOperator(BaseOperator):
                 del pred_bbox1
                 print("\r[{}/{}]".format(step, all_step), end='', flush=True)
             print('=> Evaluation Done!')
+

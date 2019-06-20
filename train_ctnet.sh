@@ -13,10 +13,9 @@ cd ..
 
 # Download pretrained backbone model.
 echo "=> Downloading pretrained model..."
-hdfs dfs -mkdir -p $PAI_DEFAULT_FS_URI/data/models/iccvdet/CenterNet/
+hdfs dfs -get $PAI_DEFAULT_FS_URI/data/models/geo/hourglass.pth
 
 # Make ext module.
-
 echo "=> Build extra module..."
 cd ext/nms
 make > /dev/null 2>&1

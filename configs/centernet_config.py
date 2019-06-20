@@ -18,7 +18,7 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 5
+Config.Train.batch_size = 4
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
@@ -27,9 +27,9 @@ Config.Train.lr = 2.5e-4
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
-Config.Train.lr_milestones = [60000, 80000]
+Config.Train.lr_milestones = [72000, 96000]
 
-Config.Train.iter_num = 100000
+Config.Train.iter_num = 120000
 
 # Transforms
 Config.Train.crop_size = (512, 512)

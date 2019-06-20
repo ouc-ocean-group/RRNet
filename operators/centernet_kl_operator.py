@@ -85,6 +85,8 @@ class CenterNetOperator(BaseOperator):
             try:
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
             except StopIteration:
+                if self.main_proc_flag:
+                    self.save_ckp(self.model.module, step, logger.log_dir)
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)

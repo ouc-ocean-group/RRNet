@@ -1,9 +1,8 @@
-import torch
 import torch.nn as nn
 from utils.model_tools import get_backbone
 from detectors.centernet_detector import CenterNetDetector
 from detectors.centernet_detector import CenterNet_WH_Detector
-from configs.centernet_config import Config
+from modules.feat_projector import FeatProjector
 
 
 class CenterNet(nn.Module):
@@ -15,29 +14,26 @@ class CenterNet(nn.Module):
         self.hm = CenterNetDetector(planes=cfg.num_classes, num_stacks=self.num_stacks, hm=True)
         self.wh = CenterNet_WH_Detector(planes=2, num_stacks=self.num_stacks)
         self.reg = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
+        self.feat_projector = FeatProjector(256)
 
     def forward(self, input):
         pre_feats = self.backbone(input)
         hms = []
         whs = []
         regs = []
+        ori_feats = []
+        projected_feats = []
         for i in range(self.num_stacks):
-            hm = self.hm(pre_feats[i], i)
-            wh = self.wh(pre_feats[i], i)
-            reg = self.reg(pre_feats[i], i)
+            ori_feats.append(pre_feats[i])
+            projected_feat = self.feat_projector(pre_feats[i])
+            projected_feats.append(projected_feat)
+
+            hm = self.hm(projected_feat, i)
+            wh = self.wh(projected_feat, i)
+            reg = self.reg(projected_feat, i)
             hms.append(hm)
             whs.append(wh)
             regs.append(reg)
-        return hms, whs, regs
 
+        return hms, whs, regs, ori_feats, projected_feats
 
-def build_net(cfg):
-    return CenterNet(cfg)
-
-
-if __name__ == '__main__':
-    cfg = Config
-    a = torch.ones(1, 3, 256, 256)
-    model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
-    hms, whs, regs = model(a)
-    print(hms[1])

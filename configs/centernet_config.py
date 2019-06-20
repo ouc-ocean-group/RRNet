@@ -19,7 +19,8 @@ Config.Train.pretrained = True
 
 # Dataloader params.
 Config.Train.batch_size = 5
-Config.Train.num_workers = 16
+Config.Train.num_workers = 4
+Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
 Config.Train.lr = 2.5e-4
@@ -55,7 +56,8 @@ Config.Val.model_path = './log/ckp-99999.pth'
 Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1
-Config.Val.num_workers = 8
+Config.Val.num_workers = 4
+Config.Val.sampler = DistributedSampler
 
 # Transforms
 Config.Val.mean = (0.485, 0.456, 0.406)
@@ -64,7 +66,7 @@ Config.Val.transforms = Compose([
     ToTensor(),
     Normalize(Config.Val.mean, Config.Val.std)
 ])
-Config.Val.result_dir = './log/'
+Config.Val.result_dir = './results/'
 
 
 # Model Config ===============================================

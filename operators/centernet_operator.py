@@ -265,7 +265,7 @@ class CenterNetOperator(BaseOperator):
                 pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
                 # Do nms
-                pred_bbox1 = self._ext_nms(pred_bbox1, gpu_id=0)
+                pred_bbox1 = self._ext_nms(pred_bbox1)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox1)

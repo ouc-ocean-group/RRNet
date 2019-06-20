@@ -51,6 +51,12 @@ def focal_loss_for_hm(pred, gt):
     return loss
 
 
+def flat_tensor(tensor):
+    c = tensor.size(1)
+    tensor = tensor.permute(0, 2, 3, 1).contiguous().view(-1, c)
+    return tensor
+
+
 def kl_loss(ori_feats, projected_feats, hms, whs, factor=0.1):
     """
     :param ori_feats: (batch x c x h x w)
@@ -58,41 +64,59 @@ def kl_loss(ori_feats, projected_feats, hms, whs, factor=0.1):
     :param hms: (batch x cls x h x w)
     :param whs: (batch x 2 x h x w)
     """
-    bs = ori_feats.size(0)
-    h = ori_feats.size(2)
-    w = ori_feats.size(3)
+    ori_feats = flat_tensor(ori_feats)
+    projected_feats = flat_tensor(projected_feats)
+    hms = flat_tensor(hms)
+    whs = flat_tensor(whs)
 
-    ori_feats = ori_feats.view(bs, -1, h, w)
-    projected_feats = projected_feats.view(bs, -1, h, w)
-    hms = hms.view(bs, -1, h, w)
-    whs = whs.view(bs, -1, h, w)
-
-    diagonals = whs[:, 0, :] ** 2 + whs[:, 1, :] ** 2
+    diagonals = whs[:, 0] ** 2 + whs[:, 1] ** 2
 
     small_feats, large_feats = [], []
 
-    for b in range(hms.size(0)):
-        ori_feat = ori_feats[b]
-        projected_feat = projected_feats[b]
-        for c in range(hms.size(1)):
-            center_flag = (hms[b, c, :] == 1)
-            if center_flag.sum() == 0:
-                continue
-            o_feat = ori_feat[:, center_flag]
-            p_feat = projected_feat[:, center_flag]
-            diagonal = diagonals[b, center_flag]
+    for c in range(hms.size(1)):
+        center_flag = (hms[:, c] == 1)
+        if center_flag.sum() == 0:
+            continue
+        o_feat = ori_feats[center_flag, :]
+        p_feat = projected_feats[center_flag, :]
+        diagonal = diagonals[center_flag]
 
-            k = math.ceil(diagonal.size(0) * factor)
+        k = math.ceil(diagonal.size(0) * factor)
 
-            top_v, top_idx = torch.topk(diagonal, k=k, largest=True)
-            down_v, down_idx = torch.topk(diagonal, k=k, largest=False)
+        top_v, top_idx = torch.topk(diagonal, k=k, largest=True)
+        down_v, down_idx = torch.topk(diagonal, k=k, largest=False)
 
-            small_feat = p_feat[:, down_idx]
-            large_feat = o_feat[:, top_idx]
-            small_feats.append(small_feat)
-            large_feats.append(large_feat)
+        small_feat = p_feat[down_idx, :]
+        large_feat = o_feat[top_idx, :]
+        small_feats.append(small_feat)
+        large_feats.append(large_feat)
 
-    small_feats = torch.cat(small_feats, dim=1)
-    large_feats = torch.cat(large_feats, dim=1)
+    small_feats = torch.cat(small_feats, dim=0)
+    large_feats = torch.cat(large_feats, dim=0)
     loss = F.kl_div(small_feats, large_feats.detach(), reduction='batchmean')
     return loss
+
+
+if __name__ == '__main__':
+    ori_feats = torch.randn(2, 3, 4, 4)
+    projected_feats = torch.randn(2, 3, 4, 4)
+    hms = torch.zeros(2, 5, 4, 4)
+    whs = torch.zeros(2, 2, 4, 4)
+
+    hms[:, 1, :, :] = 1
+    hms[1, 1, 0, 0] = 0
+
+    whs[:, 0, 0, 0] = 5
+    whs[:, 1, 0, 0] = 4
+
+    whs[:, 0, 0, 1] = 15
+    whs[:, 1, 0, 1] = 14
+
+    whs[:, 0, 1, 0] = 25
+    whs[:, 1, 1, 0] = 24
+
+    whs[:, 0, 1, 1] = 35
+    whs[:, 1, 1, 1] = 34
+
+    loss = kl_loss(ori_feats, projected_feats, hms, whs)
+    print(loss)

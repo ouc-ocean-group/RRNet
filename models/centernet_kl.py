@@ -15,7 +15,7 @@ class CenterNet(nn.Module):
         self.hm = CenterNetDetector(planes=cfg.num_classes, num_stacks=self.num_stacks, hm=True)
         self.wh = CenterNet_WH_Detector(planes=2, num_stacks=self.num_stacks)
         self.reg = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
-        self.feat_projector = FeatProjector(256)
+        self.feat_projector = FeatProjector(256, 4)
 
     def forward(self, input):
         pre_feats = self.backbone(input)

@@ -2,8 +2,6 @@ import torch.nn as nn
 
 
 class FeatProjector(nn.Module):
-    expansion = 4
-
     def __init__(self, inplanes, factor=2):
         super(FeatProjector, self).__init__()
         planes = int(inplanes / factor)

@@ -1,5 +1,5 @@
 import os
-from models.centernet import CenterNet
+from models.centernet_kl import CenterNet
 from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss

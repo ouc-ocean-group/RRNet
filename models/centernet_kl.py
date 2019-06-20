@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 from utils.model_tools import get_backbone
 from detectors.centernet_detector import CenterNetDetector
@@ -25,12 +26,13 @@ class CenterNet(nn.Module):
         projected_feats = []
         for i in range(self.num_stacks):
             ori_feats.append(pre_feats[i])
-            projected_feat = self.feat_projector(pre_feats[i])
+            feats = torch.relu(pre_feats[i])
+            projected_feat = self.feat_projector(feats)
             projected_feats.append(projected_feat)
 
-            hm = self.hm(projected_feat, i)
-            wh = self.wh(projected_feat, i)
-            reg = self.reg(projected_feat, i)
+            hm = self.hm(feats, i)
+            wh = self.wh(feats, i)
+            reg = self.reg(feats, i)
             hms.append(hm)
             whs.append(wh)
             regs.append(reg)

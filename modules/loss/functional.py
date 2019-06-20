@@ -57,66 +57,52 @@ def flat_tensor(tensor):
     return tensor
 
 
-def kl_loss(ori_feats, projected_feats, hms, whs, factor=0.1):
+def kl_loss(ori_feats, projected_feats, hms, whs, inds, factor=0.1):
     """
     :param ori_feats: (batch x c x h x w)
     :param projected_feats: (batch x c x h x w)
     :param hms: (batch x cls x h x w)
-    :param whs: (batch x 2 x h x w)
+    :param whs: (batch x n x 2)
+    :param inds: (batch x n x 1)
     """
     ori_feats = flat_tensor(ori_feats)
     projected_feats = flat_tensor(projected_feats)
-    hms = flat_tensor(hms)
-    whs = flat_tensor(whs)
+    whs = whs.view(-1, 2)
+    bias = torch.arange(0, hms.size(0), dtype=torch.float, device=ori_feats.device).unsqueeze(1).unsqueeze(1) * \
+           (hms.size(2) * hms.size(3))
+    pos_inds = inds.permute(2, 0, 1).contiguous().view(-1).long() > 0
+    inds = inds + bias
+    inds = inds.permute(2, 0, 1).contiguous().view(-1).long()
+    inds = inds[pos_inds]
+    cls = ((hms == 1).float() * torch.arange(0, hms.size(1), dtype=torch.float, device=ori_feats.device).unsqueeze(0).unsqueeze(2).unsqueeze(2)).sum(dim=1, keepdim=True)
+    cls = flat_tensor(cls)
+    diagonals = (whs[:, 0] ** 2 + whs[:, 1] ** 2)[pos_inds]
+    cls = cls[inds, :].squeeze()
 
-    diagonals = whs[:, 0] ** 2 + whs[:, 1] ** 2
-
-    small_feats, large_feats = [], []
+    small_idx, large_idx = [], []
 
     for c in range(hms.size(1)):
-        center_flag = (hms[:, c] == 1)
-        if center_flag.sum() == 0:
+        cls_flag = (cls == c)
+        if cls_flag.sum() == 0:
             continue
-        o_feat = ori_feats[center_flag, :]
-        p_feat = projected_feats[center_flag, :]
-        diagonal = diagonals[center_flag]
+        diagonal = diagonals[cls_flag]
 
         k = math.ceil(diagonal.size(0) * factor)
 
         top_v, top_idx = torch.topk(diagonal, k=k, largest=True)
         down_v, down_idx = torch.topk(diagonal, k=k, largest=False)
 
-        small_feat = p_feat[down_idx, :]
-        large_feat = o_feat[top_idx, :]
-        small_feats.append(small_feat)
-        large_feats.append(large_feat)
+        small_i = inds[cls_flag][down_idx]
+        large_i = inds[cls_flag][top_idx]
+        small_idx.append(small_i)
+        large_idx.append(large_i)
+    small_idx = torch.cat(small_idx)
+    large_idx = torch.cat(large_idx)
 
-    small_feats = torch.cat(small_feats, dim=0)
-    large_feats = torch.cat(large_feats, dim=0)
-    loss = F.kl_div(small_feats, large_feats.detach(), reduction='batchmean')
+    small_alpha = projected_feats[small_idx, :]
+    large_alpha = projected_feats[large_idx, :].detach()
+    small_feats = ori_feats[small_idx, :]
+    large_feats = ori_feats[large_idx, :].detach()
+    loss = 0.5 * (small_alpha - large_alpha) + (large_alpha.exp() + F.smooth_l1_loss(small_feats, large_feats, reduction='none')) / (2 * small_alpha.exp())
+    loss = loss.mean()
     return loss
-
-
-if __name__ == '__main__':
-    ori_feats = torch.randn(2, 3, 4, 4)
-    projected_feats = torch.randn(2, 3, 4, 4)
-    hms = torch.zeros(2, 5, 4, 4)
-    whs = torch.zeros(2, 2, 4, 4)
-
-    hms[:, 1, :, :] = 1
-    hms[1, 1, 0, 0] = 0
-
-    whs[:, 0, 0, 0] = 5
-    whs[:, 1, 0, 0] = 4
-
-    whs[:, 0, 0, 1] = 15
-    whs[:, 1, 0, 1] = 14
-
-    whs[:, 0, 1, 0] = 25
-    whs[:, 1, 1, 0] = 24
-
-    whs[:, 0, 1, 1] = 35
-    whs[:, 1, 1, 1] = 34
-
-    loss = kl_loss(ori_feats, projected_feats, hms, whs)
-    print(loss)

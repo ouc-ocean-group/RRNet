@@ -58,12 +58,13 @@ class CenterNetOperator(BaseOperator):
             off_loss += self.l1_loss(offset, t_reg_masks, t_inds, t_offsets) / self.cfg.Model.num_stacks
 
             # Get KL Divers between small object feature and large object feature.
-            kl_loss += self.kl_loss(ori_feat, projected_feat, hm, wh)
+            kl_loss += self.kl_loss(ori_feat, projected_feat, t_hms, t_whs, t_inds)
 
         return hm_loss, wh_loss, off_loss, kl_loss
 
     def training_process(self):
-        logger = Logger(self.cfg)
+        if self.main_proc_flag:
+            logger = Logger(self.cfg)
 
         self.model.train()
 

@@ -41,7 +41,7 @@ class ResidualBlock(nn.Module):
 
 
 class ConvBNRelu(nn.Module):
-    def __init__(self, kernel_size, inplane, plane, stride=1, with_bn=True):
+    def __init__(self, kernel_size, inplane, plane, stride=1, with_bn=True, with_relu=True):
         super(ConvBNRelu, self).__init__()
 
         padding = (kernel_size - 1) // 2
@@ -49,13 +49,16 @@ class ConvBNRelu(nn.Module):
             inplane, plane, (kernel_size, kernel_size),
             padding=(padding, padding), stride=(stride, stride), bias=not with_bn)
         self.bn = nn.BatchNorm2d(plane) if with_bn else nn.Sequential()
-        self.relu = nn.ReLU(inplace=True)
+        self.with_relu = with_relu
+        if with_relu:
+            self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x):
         out = self.conv(x)
         out = self.bn(out)
-        relu = self.relu(out)
-        return relu
+        if self.with_relu:
+            out = self.relu(out)
+        return out
 
 
 class Hourglass(nn.Module):
@@ -152,7 +155,7 @@ class HourglassNet(nn.Module):
         ])
 
         self.convs = nn.ModuleList([
-            ConvBNRelu(3, inplanes[0], self.num_feats) for _ in range(num_stacks)
+            ConvBNRelu(3, inplanes[0], self.num_feats, with_relu=False) for _ in range(num_stacks)
         ])
 
         self.residual = nn.ModuleList([
@@ -186,6 +189,7 @@ class HourglassNet(nn.Module):
             feat = self.hgs[i](pre_feat)
             feat = self.convs[i](feat)
             outs.append(feat)
+            feat = torch.relu(feat)
 
             if i < self.num_stacks - 1:
                 pre_feat = self.inter_[i](pre_feat) + self.conv_[i](feat)

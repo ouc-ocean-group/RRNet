@@ -1,7 +1,5 @@
-import cv2
 import os
 from models.centernet import CenterNet
-from utils.metrics.metrics import evaluate_results
 from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
@@ -22,7 +20,7 @@ class CenterNetOperator(BaseOperator):
     def __init__(self, cfg):
         self.cfg = cfg
 
-        model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
+        model = CenterNet(cfg).cuda()
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
@@ -34,8 +32,6 @@ class CenterNetOperator(BaseOperator):
         # TODO: change it to our class
         self.focal_loss = FocalLossHM()
         self.l1_loss = RegL1Loss()
-
-        self.main_proc_flag = cfg.Distributed.gpu_id == 0
 
     def criterion(self, outs, annos):
         hms, whs, offsets = outs
@@ -56,8 +52,7 @@ class CenterNetOperator(BaseOperator):
         return hm_loss, wh_loss, off_loss
 
     def training_process(self):
-        if self.main_proc_flag:
-            logger = Logger(self.cfg)
+        logger = Logger(self.cfg)
 
         self.model.train()
 
@@ -67,7 +62,6 @@ class CenterNetOperator(BaseOperator):
         total_off_loss = 0
 
         epoch = 0
-        self.training_loader.sampler.set_epoch(epoch)
         training_loader = iter(self.training_loader)
 
         for step in range(self.cfg.Train.iter_num):
@@ -78,16 +72,15 @@ class CenterNetOperator(BaseOperator):
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
             except StopIteration:
                 epoch += 1
-                self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
 
-            imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
-            hms = hms.cuda(self.cfg.Distributed.gpu_id)
-            whs = whs.cuda(self.cfg.Distributed.gpu_id)
-            inds = inds.cuda(self.cfg.Distributed.gpu_id)
-            offsets = offsets.cuda(self.cfg.Distributed.gpu_id)
-            reg_masks = reg_masks.cuda(self.cfg.Distributed.gpu_id)
+            imgs = imgs.cuda()
+            hms = hms.cuda()
+            whs = whs.cuda()
+            inds = inds.cuda()
+            offsets = offsets.cuda()
+            reg_masks = reg_masks.cuda()
 
             targets = hms, whs, inds, offsets, reg_masks
 
@@ -104,50 +97,49 @@ class CenterNetOperator(BaseOperator):
             total_wh_loss += wh_loss.item()
             total_off_loss += off_loss.item()
 
-            if self.main_proc_flag:
-                if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
-                    # Loss
-                    for param_group in self.optimizer.param_groups:
-                        lr = param_group['lr']
-                    log_data = {'scalar': {
-                        'train/total_loss': total_loss / self.cfg.Train.print_interval,
-                        'train/hm_loss': total_hm_loss / self.cfg.Train.print_interval,
-                        'train/wh_loss': total_wh_loss / self.cfg.Train.print_interval,
-                        'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
-                        'train/lr': lr
-                    }}
+            if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
+                # Loss
+                for param_group in self.optimizer.param_groups:
+                    lr = param_group['lr']
+                log_data = {'scalar': {
+                    'train/total_loss': total_loss / self.cfg.Train.print_interval,
+                    'train/hm_loss': total_hm_loss / self.cfg.Train.print_interval,
+                    'train/wh_loss': total_wh_loss / self.cfg.Train.print_interval,
+                    'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
+                    'train/lr': lr
+                }}
 
-                    # Visualization
-                    img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+                # Visualization
+                img = (denormalize(imgs[0].cpu()).permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
 
-                    hm, wh, offset = outs[0][0], outs[1][0], outs[2][0]
-                    pred_bbox0 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
+                hm, wh, offset = outs[0][0], outs[1][0], outs[2][0]
+                pred_bbox0 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
-                    hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
-                    pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
+                hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
+                pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
-                    # Do nms
-                    pred_bbox0 = self._ext_nms(pred_bbox0)
-                    pred_bbox1 = self._ext_nms(pred_bbox1)
+                # Do nms
+                pred_bbox0 = self._ext_nms(pred_bbox0)
+                pred_bbox1 = self._ext_nms(pred_bbox1)
 
-                    pred0_on_img = visualize(img.copy(), pred_bbox0, xywh=False, with_score=True)
-                    pred1_on_img = visualize(img.copy(), pred_bbox1, xywh=False, with_score=True)
-                    gt_on_img = visualize(img, annos[0])
-                    pred0_on_img = torch.from_numpy(pred0_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                    pred1_on_img = torch.from_numpy(pred1_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
-                    gt_on_img = torch.from_numpy(gt_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                pred0_on_img = visualize(img.copy(), pred_bbox0, xywh=False, with_score=True)
+                pred1_on_img = visualize(img.copy(), pred_bbox1, xywh=False, with_score=True)
+                gt_on_img = visualize(img, annos[0])
+                pred0_on_img = torch.from_numpy(pred0_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                pred1_on_img = torch.from_numpy(pred1_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
+                gt_on_img = torch.from_numpy(gt_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
 
-                    log_data['imgs'] = {'train': [pred0_on_img, pred1_on_img, gt_on_img]}
-                    logger.log(log_data, step)
+                log_data['imgs'] = {'train': [pred0_on_img, pred1_on_img, gt_on_img]}
+                logger.log(log_data, step)
 
-                    total_loss = 0
-                    total_hm_loss = 0
-                    total_wh_loss = 0
-                    total_off_loss = 0
+                total_loss = 0
+                total_hm_loss = 0
+                total_wh_loss = 0
+                total_off_loss = 0
 
-                if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
-                        step == self.cfg.Train.iter_num - 1:
-                    self.save_ckp(self.model.module, step, logger.log_dir)
+            if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
+                    step == self.cfg.Train.iter_num - 1:
+                self.save_ckp(self.model.module, step, logger.log_dir)
 
     def transform_bbox(self, hm, wh, offset, k=850, scale_factor=4):
         batchsize, cls_num, h, w = hm.size()
@@ -252,15 +244,14 @@ class CenterNetOperator(BaseOperator):
 
         state_dict = torch.load(self.cfg.Val.model_path)
         self.model.module.load_state_dict(state_dict)
-        epoch = 0
         step = 0
+        all_step = len(self.validation_loader)
 
-        self.validation_loader.sampler.set_epoch(epoch)
         with torch.no_grad():
             for data in self.validation_loader:
                 step += 1
                 imgs, annos, names = data
-                imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
+                imgs = imgs.cuda()
 
                 outs = self.model(imgs)
 
@@ -272,11 +263,8 @@ class CenterNetOperator(BaseOperator):
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox1)
-                file_path = os.path.join('./result/', names[0] + '.txt')
-                self.save_result(file_path, pred_bbox1)
 
                 del outs
                 del pred_bbox1
-                if self.main_proc_flag:
-                    print('Step : %d / %d' % (step, len(self.validation_loader)))
-            print('Done !!!')
+                print("\r[{}/{}]".format(step, all_step), end='', flush=True)
+            print('=> Evaluation Done!')

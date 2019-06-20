@@ -18,9 +18,8 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 1
-Config.Train.num_workers = 4
-Config.Train.sampler = DistributedSampler
+Config.Train.batch_size = 5
+Config.Train.num_workers = 16
 
 # Optimizer params.
 Config.Train.lr = 2.5e-4
@@ -39,8 +38,8 @@ Config.Train.scale_factor = 4
 Config.Train.transforms = Compose([
     ToTensor(),
     MaskIgnore(Config.Train.mean),
-    # HorizontalFlip(),
-    # RandomCrop(Config.Train.crop_size),
+    HorizontalFlip(),
+    RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
     ToHeatmap(scale_factor=Config.Train.scale_factor)
 ])
@@ -56,8 +55,7 @@ Config.Val.model_path = './log/ckp-99999.pth'
 Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1
-Config.Val.num_workers = 4
-Config.Val.sampler = DistributedSampler
+Config.Val.num_workers = 8
 
 # Transforms
 Config.Val.mean = (0.485, 0.456, 0.406)

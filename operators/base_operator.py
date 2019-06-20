@@ -1,6 +1,6 @@
 import os
 import torch
-from torch.nn import DataParallel
+from torch.nn.parallel import DistributedDataParallel
 import random
 
 
@@ -21,7 +21,7 @@ class BaseOperator(object):
         torch.manual_seed(cfg.seed)
         torch.cuda.manual_seed(cfg.seed)
 
-        self.model = DataParallel(model)
+        self.model = DistributedDataParallel(model, find_unused_parameters=True, device_ids=[self.cfg.Distributed.gpu_id])
 
         self.lr_sch = lr_sch
 

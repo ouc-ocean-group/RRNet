@@ -16,7 +16,6 @@ echo "=> Downloading pretrained model..."
 hdfs dfs -get $PAI_DEFAULT_FS_URI/data/models/geo/hourglass.pth
 
 # Make ext module.
-
 echo "=> Build extra module..."
 cd ext/nms
 make > /dev/null 2>&1
@@ -33,16 +32,17 @@ else
     echo "Wrong model!"
 fi
 
-# Save checkpoints a
+# Save checkpoints and logs.
 echo "=> Saving checkpoints and logs..."
-d logs.
 cd log
 hdfs dfs -mkdir -p $PAI_DEFAULT_FS_URI/data/models/iccvdet/CenterNet/
 for f in *; do
     echo "   $f"
     hdfs dfs -put -f $f $PAI_DEFAULT_FS_URI/data/models/iccvdet/CenterNet/$f
+    mv $f ../
 done
 cd ..
+
 
 # Evaluation.
 echo "=> Start evaluating..."

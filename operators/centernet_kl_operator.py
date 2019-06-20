@@ -204,7 +204,8 @@ class CenterNetOperator(BaseOperator):
 
         return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
 
-    def _ctnet_nms(self, heat, kernel=3):
+    @staticmethod
+    def _ctnet_nms(heat, kernel=3):
         pad = (kernel - 1) // 2
 
         hmax = nn.functional.max_pool2d(
@@ -212,7 +213,8 @@ class CenterNetOperator(BaseOperator):
         keep = (hmax == heat).float()
         return heat * keep
 
-    def _gather_feat(self, feat, ind, mask=None):
+    @staticmethod
+    def _gather_feat(feat, ind, mask=None):
         dim = feat.size(2)
         ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
         feat = feat.gather(1, ind)
@@ -222,7 +224,8 @@ class CenterNetOperator(BaseOperator):
             feat = feat.view(-1, dim)
         return feat
 
-    def _ext_nms(self, pred_bbox):
+    @staticmethod
+    def _ext_nms(pred_bbox, gpu_id=None):
         if pred_bbox.size(0) == 0:
             return pred_bbox
         cls_unique = pred_bbox[:, 5].unique()
@@ -232,7 +235,7 @@ class CenterNetOperator(BaseOperator):
             bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-            keep_idx = nms(bbox_for_nms[:, :5], thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
+            keep_idx = nms(bbox_for_nms[:, :5], thresh=0.7, gpu_id=gpu_id)
             keep_bbox = bbox_for_nms[keep_idx]
             keep_bboxs.append(keep_bbox)
         keep_bboxs = np.concatenate(keep_bboxs, axis=0)
@@ -270,7 +273,7 @@ class CenterNetOperator(BaseOperator):
                 pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
                 # Do nms
-                pred_bbox1 = self._ext_nms(pred_bbox1)
+                pred_bbox1 = self._ext_nms(pred_bbox1, gpu_id=0)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox1)

@@ -13,7 +13,12 @@ def make_dataloader(cfg, collate_fn=None):
     train_dataset = datasets[cfg.dataset](root_dir=cfg.data_root, transforms=cfg.Train.transforms, split='train')
     val_dataset = datasets[cfg.dataset](root_dir=cfg.data_root, transforms=cfg.Val.transforms, split='val')
 
-    collate_fn = train_dataset.collate_fn_ctnet if collate_fn is 'ctnet' else train_dataset.collate_fn
+    if collate_fn is 'ctnet':
+        collate_fn = train_dataset.collate_fn_ctnet
+    elif collate_fn is '9boxnet':
+        collate_fn = train_dataset.collate_fn_9boxnet
+    else:
+        collate_fn = train_dataset.collate_fn
 
     train_loader = DataLoader(train_dataset,
                               batch_size=cfg.Train.batch_size, num_workers=cfg.Train.num_workers,

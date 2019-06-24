@@ -181,3 +181,13 @@ class ToHeatmap(object):
     def __call__(self, data):
         img, annos, hm, wh, ind, offset, reg_mask = F.to_heatmap(data, self.scale_factor, self.cls_num)
         return img, annos, hm, wh, ind, offset, reg_mask
+
+
+class To9BoxHeatmap(object):
+    def __init__(self, scale_factor=4, bias_factor=0.5):
+        self.scale_factor = scale_factor
+        self.bias_factor = bias_factor
+
+    def __call__(self, data):
+        img, annos, hms, whs, inds, offset, reg_mask = F.to_9box_heatmap(data, self.scale_factor, self.bias_factor)
+        return img, annos, hms, whs, inds, offset, reg_mask

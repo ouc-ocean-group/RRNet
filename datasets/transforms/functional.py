@@ -283,3 +283,59 @@ def mask_ignore(data, mean=(0.485, 0.456, 0.406), ignore_cls=0):
     anno = data[1][1 - ign_idx, :]
 
     return img, anno
+
+
+DIRECTION = torch.tensor([[-1, -1], [-1, 0], [-1, 1],
+                          [0, -1], [0, 0], [0, 1],
+                          [1, -1], [1, 0], [1, 1]], dtype=torch.float)
+
+
+def to_9box_heatmap(data, scale_factor=4, bias_factor=0.5):
+    """
+    Transform annotations to heatmap.
+    :param data: (img, annos), tensor
+    :param scale_factor:
+    :param bias_factor:
+    :return:
+    """
+    img = data[0]
+    annos = data[1].clone()
+
+    h, w = img.size(1), img.size(2)
+
+    hm = torch.zeros(9, h // scale_factor, w // scale_factor)
+
+    annos[:, 2] += annos[:, 0]
+    annos[:, 3] += annos[:, 1]
+    annos[:, :4] = annos[:, :4] / scale_factor
+    bboxs_h, bboxs_w = annos[:, 3:4] - annos[:, 1:2], annos[:, 2:3] - annos[:, 0:1]
+
+    wh = torch.cat([bboxs_w, bboxs_h], dim=1)
+    bias = (wh * bias_factor/2.).floor().clamp(min=1)
+
+    ct = torch.cat(((annos[:, 0:1] + annos[:, 2:3]) / 2., (annos[:, 1:2] + annos[:, 3:4]) / 2.), dim=1)
+    ct_int = ct.floor()
+    offset = ct - ct_int
+    reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
+
+    whs = []
+    inds = []
+    for i in range(9):
+        direction = DIRECTION[i]
+        b = bias * direction
+        cur_ct = (ct_int + b).long()
+        hm[i, cur_ct[:, 1], cur_ct[:, 0]] = 1
+
+        cur_wh = wh.repeat(1, 2)
+        cur_wh[:, 0] += b[:, 0]
+        cur_wh[:, 1] += b[:, 1]
+        cur_wh[:, 2] -= b[:, 0]
+        cur_wh[:, 3] -= b[:, 1]
+        whs.append(cur_wh)
+
+        cur_ind = cur_ct[:, 1:2] * (w // 4) + cur_ct[:, 0:1]
+        inds.append(cur_ind)
+    whs = torch.cat(whs, dim=1)
+    inds = torch.cat(inds, dim=1)
+
+    return data[0], data[1], hm, whs, inds, offset, reg_mask

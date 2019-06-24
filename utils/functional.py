@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import math
+import torchvision
 
 
 def xyxy2xywh(x):
@@ -33,5 +34,20 @@ def scale_coords(img1_shape, coords, img0_shape):
     coords[:, :4] /= gain
     coords[:, :4] = coords[:, :4].clamp(min=0)
     return coords
+
+
+def roi_align(input, bboxes, output_size):
+    """
+    :param input: (N,C,H,W)
+    :param bboxes: (Tensor[K, 5] or List[Tensor[L, 4]]
+    :param output_size: (int or Tuple[int, int])
+    :return: (N, )  corresponding pooled region of image
+    """
+    num_bbox = [len(bboxes[i]) for i in range(len(bboxes))]
+    pooled_regions = torchvision.ops.roi_align(input, bboxes, output_size=output_size)
+    pooled_regions = torch.split(pooled_regions, num_bbox)
+    return pooled_regions
+
+
 
 

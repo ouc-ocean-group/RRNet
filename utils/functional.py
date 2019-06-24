@@ -35,6 +35,3 @@ def scale_coords(img1_shape, coords, img0_shape):
     return coords
 
 
-
-
-

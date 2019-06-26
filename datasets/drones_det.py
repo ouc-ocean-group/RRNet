@@ -28,6 +28,7 @@ class DronesDET(Dataset):
 
     def __getitem__(self, item):
         name = self.mdf[item]
+        name = '0000204_01028_d_0000194'
 
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
@@ -96,7 +97,7 @@ class DronesDET(Dataset):
             torch.zeros(batchsize, max_n, 36), \
             torch.zeros(batchsize, max_n, 2), \
             torch.zeros(batchsize, max_n, 9), \
-            torch.zeros(batchsize, max_n, 1)
+            torch.zeros(batchsize, max_n, 9)
 
         for i, batch_data in enumerate(batch):
             imgs.append(batch_data[0].unsqueeze(0))

@@ -1,31 +1,22 @@
 import torch.nn as nn
 from backbones.resnet import Bottleneck
+import torch.nn.functional as F
 
 
 class FasterRCNNDetector(nn.Module):
     def __init__(self, cls_num):
         super(FasterRCNNDetector, self).__init__()
 
-        self.top_layer = Bottleneck(inplanes=256, planes=128)
+        self.top_layer = Bottleneck(inplanes=256, planes=64)
 
-        self.classifier = nn.Conv2d(512, cls_num, kernel_size=1)
-        self.regressor = nn.Conv2d(512, 4, kernel_size=1)
+        self.classifier = nn.Conv2d(256, cls_num, kernel_size=1)
+        self.regressor = nn.Conv2d(256, 4, kernel_size=1)
 
-    def forward(self, x, hm, wh, offset, inds):
-        bboxes = self.get_bboxes(hm, wh, offset, inds)
-        roi_feat = self.roi_align(x, bboxes)
-        feat = self.top_layer(roi_feat)
+    def forward(self, feat):
+        feat = self.top_layer(feat)
+        feat = F.adaptive_avg_pool2d(feat, 1)
         cls = self.classifier(feat)
         reg = self.regressor(feat)
-
+        cls = cls.view(cls.size(0), cls.size(1))
+        reg = reg.view(reg.size(0), reg.size(1))
         return cls, reg
-
-    def get_bboxes(self, hm, wh, offset, inds):
-        """
-        Transform and get bbox.
-        :param hm: b x 9 x h x w
-        :param wh: b x 36 x h x w
-        :param offset: b x 2 x h x w
-        :param inds: b x
-        :return:
-        """

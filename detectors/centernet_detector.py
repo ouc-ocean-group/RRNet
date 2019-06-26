@@ -23,9 +23,9 @@ class CenterNetDetector(nn.Module):
         return output
 
 
-class CenterNet_WH_Detector(nn.Module):
+class CenterNetWHDetector(nn.Module):
     def __init__(self, planes, hm=True, num_stacks=2):
-        super(CenterNet_WH_Detector, self).__init__()
+        super(CenterNetWHDetector, self).__init__()
         self.hm = hm
         self.num_stacks = num_stacks
         self.detect_conv_layer = nn.ModuleList([nn.Sequential(
@@ -35,12 +35,12 @@ class CenterNet_WH_Detector(nn.Module):
         ])
 
         self.detect_H_layer = nn.ModuleList([nn.Sequential(
-            HCov(17, 256, 1, with_bn=False)
+            HCov(17, 256, planes, with_bn=False)
         ) for _ in range(self.num_stacks)
         ])
 
         self.detect_W_layer = nn.ModuleList([nn.Sequential(
-            WCov(17, 256, 1, with_bn=False)
+            WCov(17, 256, planes, with_bn=False)
         ) for _ in range(self.num_stacks)
         ])
 
@@ -48,7 +48,9 @@ class CenterNet_WH_Detector(nn.Module):
         conv = self.detect_conv_layer[index](input)
         H = self.detect_H_layer[index](conv)
         W = self.detect_W_layer[index](conv)
-        output = torch.cat((W, H), dim=1)
+        H = H.view(H.size(0), -1, 1, H.size(2), H.size(3))
+        W = W.view(W.size(0), -1, 1, W.size(2), W.size(3))
+        output = torch.cat((W, H), dim=2).view(H.size(0), -1, H.size(3), H.size(4))
         # output = F.interpolate(output, scale_factor=2, mode='bilinear', align_corners=True)
         return output
 

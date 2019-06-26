@@ -36,18 +36,12 @@ def scale_coords(img1_shape, coords, img0_shape):
     return coords
 
 
-def roi_align(input, bboxes, output_size):
+def roi_align(x, bboxes, output_size):
     """
-    :param input: (N,C,H,W)
+    :param x: (N,C,H,W)
     :param bboxes: (Tensor[K, 5] or List[Tensor[L, 4]]
     :param output_size: (int or Tuple[int, int])
     :return: (N, )  corresponding pooled region of image
     """
-    num_bbox = [len(bboxes[i]) for i in range(len(bboxes))]
-    pooled_regions = torchvision.ops.roi_align(input, bboxes, output_size=output_size)
-    pooled_regions = torch.split(pooled_regions, num_bbox)
+    pooled_regions = torchvision.ops.roi_align(x, bboxes, output_size=output_size)
     return pooled_regions
-
-
-
-

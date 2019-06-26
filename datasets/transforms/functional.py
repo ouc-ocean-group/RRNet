@@ -229,7 +229,7 @@ def to_heatmap(data, scale_factor=4, cls_num=10):
     ct_int = ct.floor()
     offset = ct - ct_int
     reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
-    ind = ct_int[:, 1:2] * (w // 4) + ct_int[:, 0:1]
+    ind = ct_int[:, 1:2] * (w // scale_factor) + ct_int[:, 0:1]
     radius = gaussian_radius((bboxs_h.ceil(), bboxs_w.ceil()))
     radius = radius.floor().clamp(min=0)
     for k, cls in enumerate(cls_idx):
@@ -311,31 +311,40 @@ def to_9box_heatmap(data, scale_factor=4, bias_factor=0.5):
     bboxs_h, bboxs_w = annos[:, 3:4] - annos[:, 1:2], annos[:, 2:3] - annos[:, 0:1]
 
     wh = torch.cat([bboxs_w, bboxs_h], dim=1)
-    bias = (wh * bias_factor/2.).floor().clamp(min=1)
+    bias = (wh * bias_factor/2.).floor()
 
     ct = torch.cat(((annos[:, 0:1] + annos[:, 2:3]) / 2., (annos[:, 1:2] + annos[:, 3:4]) / 2.), dim=1)
     ct_int = ct.floor()
     offset = ct - ct_int
-    reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
 
     whs = []
     inds = []
+    masks = []
+    cur_wh_template = wh.repeat(1, 2) / 2
     for i in range(9):
         direction = DIRECTION[i]
         b = bias * direction
         cur_ct = (ct_int + b).long()
-        hm[i, cur_ct[:, 1], cur_ct[:, 0]] = 1
 
-        cur_wh = wh.repeat(1, 2)
-        cur_wh[:, 0] += b[:, 0]
-        cur_wh[:, 1] += b[:, 1]
-        cur_wh[:, 2] -= b[:, 0]
-        cur_wh[:, 3] -= b[:, 1]
+        valid_flag = cur_ct > 0
+        valid_flag = valid_flag[:, 0] * valid_flag[:, 1] *\
+                     (cur_ct[:, 0] < (w // scale_factor)) * (cur_ct[:, 1] < (h // scale_factor))
+        masks.append(valid_flag.unsqueeze(1))
+
+        hm[i, cur_ct[valid_flag, 1], cur_ct[valid_flag, 0]] = 1
+
+        cur_wh = cur_wh_template.clone()
+        cur_wh[:, 0] = cur_wh[:, 0] + b[:, 0]
+        cur_wh[:, 1] = cur_wh[:, 1] + b[:, 1]
+        cur_wh[:, 2] = cur_wh[:, 2] - b[:, 0]
+        cur_wh[:, 3] = cur_wh[:, 3] - b[:, 1]
         whs.append(cur_wh)
 
-        cur_ind = cur_ct[:, 1:2] * (w // 4) + cur_ct[:, 0:1]
+        cur_ind = cur_ct[:, 1:2] * (w // scale_factor) + cur_ct[:, 0:1]
+        cur_ind = cur_ind * valid_flag.long().unsqueeze(1)
         inds.append(cur_ind)
     whs = torch.cat(whs, dim=1)
     inds = torch.cat(inds, dim=1)
+    masks = torch.cat(masks, dim=1)
 
-    return data[0], data[1], hm, whs, inds, offset, reg_mask
+    return data[0], data[1], hm, whs, inds, offset, masks

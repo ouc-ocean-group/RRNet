@@ -35,8 +35,10 @@ Config.Train.iter_num = 100000
 Config.Train.crop_size = (512, 512)
 Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
+Config.Train.multiscale = (0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4)
 Config.Train.scale_factor = 4
 Config.Train.transforms = Compose([
+    # Multiscale(Config.Train.multiscale),
     ToTensor(),
     MaskIgnore(Config.Train.mean),
     HorizontalFlip(),

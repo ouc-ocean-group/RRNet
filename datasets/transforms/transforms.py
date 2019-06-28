@@ -173,6 +173,15 @@ class MaskIgnoreNTimes(object):
         return imgs, annos
 
 
+class Multiscale(object):
+    def __init__(self, scale=(0.5, 0.75, 1, 1.25, 1.5)):
+        self.scale = scale
+
+    def __call__(self, data):
+        randnum = random.randint(0, len(self.scale) - 1)
+        return F.multiscale(data, self.scale[randnum])
+
+
 class ToHeatmap(object):
     def __init__(self, scale_factor=4, cls_num=10):
         self.scale_factor = scale_factor

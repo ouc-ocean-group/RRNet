@@ -52,6 +52,19 @@ def annos_to_tensor(data):
     return annos_tensor
 
 
+def multiscale(data, scale):
+    img = data[0]
+    anno = data[1]
+    height, width = img.size[1], img.size[0]
+
+    out_height, out_width = int(height*scale), int(width*scale)
+    img = img.resize((out_width, out_height), Image.BILINEAR)
+
+    anno[:, :4] = anno[:, :4] * scale
+
+    return img, anno
+
+
 def get_img_size(data):
     """
     Return the size of the input data.

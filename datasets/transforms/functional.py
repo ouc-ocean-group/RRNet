@@ -1,5 +1,6 @@
 import torch
 import random
+from PIL import Image
 import PIL.ImageEnhance as ImageEnhance
 import torchvision.transforms.functional as torchtransform
 from utils.metrics.metrics import bbox_iou
@@ -52,13 +53,13 @@ def annos_to_tensor(data):
     return annos_tensor
 
 
-def multiscale(data, scale):
+def resize(data, scale_factor):
     img = data[0]
     anno = data[1]
     height, width = img.size[1], img.size[0]
-    out_height, out_width = int(height*scale), int(width*scale)
+    out_height, out_width = int(height*scale_factor), int(width*scale_factor)
     img = img.resize((out_width, out_height), Image.BILINEAR)
-    anno[:, :4] = anno[:, :4] * scale
+    anno[:, :4] = anno[:, :4] * scale_factor
     return img, anno
 
 

@@ -53,8 +53,9 @@ class NormalizeNTimes(object):
 
 
 class RandomCrop(object):
-    def __init__(self, size):
+    def __init__(self, size, keep_iou=0.5):
         self.h, self.w = size
+        self.keep_iou = keep_iou
 
     def __call__(self, data):
         assert isinstance(data[0], torch.Tensor)
@@ -72,21 +73,22 @@ class RandomCrop(object):
         rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
         crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
 
-        annos = data[1]
-        remove_large_flag = 1 - (annos[:, 2] > self.w) * (annos[:, 3] > self.h)
+        annos = data[1].clone()
+        remove_large_flag = 1 - ((annos[:, 2] > self.w) + (annos[:, 3] > self.h)) > 0
         annos = annos[remove_large_flag, :]
         if annos.size(0) == 0:
             min_side = min(h, w)
             # TODO: Not safe here, but I'm lazy.
             scale_factor = self.w / min_side
             img = interpolate(img.unsqueeze(0), scale_factor=scale_factor, mode='bilinear', align_corners=True).squeeze()
-            annos = annos * scale_factor
+            annos = data[1].clone()
+            annos[:, :4] = annos[:, :4] * scale_factor
 
         iou = bbox_iou(annos, torch.tensor([[rx, ry, self.w, self.h]]), x1y1x2y2=False)
-        keep_flag = iou.squeeze() > 0.5
-        annos = annos[keep_flag, :]
+        keep_flag = iou.squeeze() > self.keep_iou
+        keep_annos = annos[keep_flag, :]
 
-        if annos.size(0) == 0:
+        if keep_annos.size(0) == 0:
             rand_idx = torch.randint(0, data[1].size(0), (1,))
             include_bbox = data[1][rand_idx, :].squeeze()
             x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
@@ -100,8 +102,9 @@ class RandomCrop(object):
             x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
             y1 = np.random.randint(min_y1, max_y1) if min_y1 != max_y1 else min_y1
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
-
-        cropped_annos = F.crop_annos(annos.clone(), crop_coordinate, self.h, self.w)
+        else:
+            annos = keep_annos
+        cropped_annos = F.crop_annos(annos, crop_coordinate, self.h, self.w)
         cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos
 

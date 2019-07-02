@@ -5,7 +5,7 @@ from utils.metrics.metrics import evaluate_results
 # ==== import your configuration here ===
 from configs.centernet_config import Config
 # ==== import your model operator here ===
-from operators.centernet_operator import CenterNetOperator
+from operators.centernet_kl_operator import CenterNetOperator
 
 if __name__ == "__main__":
     """

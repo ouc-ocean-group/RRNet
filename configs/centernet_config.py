@@ -18,7 +18,7 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 5
+Config.Train.batch_size = 4
 Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
@@ -27,29 +27,27 @@ Config.Train.lr = 2.5e-4
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
-Config.Train.lr_milestones = [60000, 80000]
+Config.Train.lr_milestones = [72000, 96000]
 
-Config.Train.iter_num = 100000
+Config.Train.iter_num = 120000
 
 # Transforms
 Config.Train.crop_size = (512, 512)
 Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
-Config.Train.multiscale = (0.6, 0.7, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.4)
 Config.Train.scale_factor = 4
 Config.Train.transforms = Compose([
-    MultiScale(Config.Train.multiscale),
     ToTensor(),
     MaskIgnore(Config.Train.mean),
     HorizontalFlip(),
-    RandomCrop(Config.Train.crop_size, keep_iou=0.2),
+    RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
     ToHeatmap(scale_factor=Config.Train.scale_factor)
 ])
 
 # Log params.
-Config.Train.print_interval = 50
-Config.Train.checkpoint_interval = 5000
+Config.Train.print_interval = 20
+Config.Train.checkpoint_interval = 15000
 
 
 # Validation Config =========================================

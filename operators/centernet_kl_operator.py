@@ -1,8 +1,9 @@
 import os
-from models.centernet import CenterNet
+from models.centernet_kl import CenterNet
 from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
+from modules.loss.klloss import KLLoss
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -32,18 +33,22 @@ class CenterNetOperator(BaseOperator):
         # TODO: change it to our class
         self.focal_loss = FocalLossHM()
         self.l1_loss = RegL1Loss()
+        self.kl_loss = KLLoss(factor=0.2)
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0
 
-    def criterion(self, outs, annos):
-        hms, whs, offsets = outs
-        t_hms, t_whs, t_inds, t_offsets, t_reg_masks = annos
-        hm_loss, wh_loss, off_loss = 0, 0, 0
+    def criterion(self, outs, targets):
+        hms, whs, offsets, ori_feats, projected_feats = outs
+        t_hms, t_whs, t_inds, t_offsets, t_reg_masks = targets
+        hm_loss, wh_loss, off_loss, kl_loss = 0, 0, 0, 0
 
         for s in range(self.cfg.Model.num_stacks):
             hm = hms[s]
             wh = whs[s]
             offset = offsets[s]
+            ori_feat = ori_feats[s]
+            projected_feat = projected_feats[s]
+
             hm = torch.clamp(torch.sigmoid(hm), min=1e-4, max=1-1e-4)
             # Heatmap Loss
             hm_loss += self.focal_loss(hm, t_hms) / self.cfg.Model.num_stacks
@@ -51,7 +56,11 @@ class CenterNetOperator(BaseOperator):
             wh_loss += self.l1_loss(wh, t_reg_masks, t_inds, t_whs) / self.cfg.Model.num_stacks
             # OffSet Loss
             off_loss += self.l1_loss(offset, t_reg_masks, t_inds, t_offsets) / self.cfg.Model.num_stacks
-        return hm_loss, wh_loss, off_loss
+
+            # Get KL Divers between small object feature and large object feature.
+            kl_loss += self.kl_loss(ori_feat, projected_feat, t_hms, t_whs, t_inds)
+
+        return hm_loss, wh_loss, off_loss, kl_loss
 
     def training_process(self):
         if self.main_proc_flag:
@@ -63,6 +72,7 @@ class CenterNetOperator(BaseOperator):
         total_hm_loss = 0
         total_wh_loss = 0
         total_off_loss = 0
+        total_kl_loss = 0
 
         epoch = 0
         self.training_loader.sampler.set_epoch(epoch)
@@ -75,6 +85,8 @@ class CenterNetOperator(BaseOperator):
             try:
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
             except StopIteration:
+                if self.main_proc_flag:
+                    self.save_ckp(self.model.module, step, logger.log_dir)
                 epoch += 1
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
@@ -91,9 +103,9 @@ class CenterNetOperator(BaseOperator):
 
             outs = self.model(imgs)
 
-            hm_loss, wh_loss, off_loss = self.criterion(outs, targets)
+            hm_loss, wh_loss, off_loss, kl_loss = self.criterion(outs, targets)
 
-            loss = hm_loss + (0.1 * wh_loss) + off_loss
+            loss = hm_loss + (0.1 * wh_loss) + off_loss + kl_loss
             loss.backward()
             self.optimizer.step()
 
@@ -101,6 +113,7 @@ class CenterNetOperator(BaseOperator):
             total_hm_loss += hm_loss.item()
             total_wh_loss += wh_loss.item()
             total_off_loss += off_loss.item()
+            total_kl_loss += kl_loss.item()
 
             if self.main_proc_flag:
                 if step % self.cfg.Train.print_interval == self.cfg.Train.print_interval - 1:
@@ -112,6 +125,7 @@ class CenterNetOperator(BaseOperator):
                         'train/hm_loss': total_hm_loss / self.cfg.Train.print_interval,
                         'train/wh_loss': total_wh_loss / self.cfg.Train.print_interval,
                         'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
+                        'train/kl_loss': total_kl_loss / self.cfg.Train.print_interval,
                         'train/lr': lr
                     }}
 
@@ -125,8 +139,8 @@ class CenterNetOperator(BaseOperator):
                     pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
                     # Do nms
-                    pred_bbox0 = self._ext_nms(pred_bbox0)
-                    pred_bbox1 = self._ext_nms(pred_bbox1)
+                    pred_bbox0 = self._ext_nms(pred_bbox0, gpu_id=self.cfg.Distributed.gpu_id)
+                    pred_bbox1 = self._ext_nms(pred_bbox1, gpu_id=self.cfg.Distributed.gpu_id)
 
                     pred0_on_img = visualize(img.copy(), pred_bbox0, xywh=False, with_score=True)
                     pred1_on_img = visualize(img.copy(), pred_bbox1, xywh=False, with_score=True)
@@ -142,6 +156,7 @@ class CenterNetOperator(BaseOperator):
                     total_hm_loss = 0
                     total_wh_loss = 0
                     total_off_loss = 0
+                    total_kl_loss = 0
 
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                         step == self.cfg.Train.iter_num - 1:
@@ -199,7 +214,8 @@ class CenterNetOperator(BaseOperator):
 
         return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
 
-    def _ctnet_nms(self, heat, kernel=3):
+    @staticmethod
+    def _ctnet_nms(heat, kernel=3):
         pad = (kernel - 1) // 2
 
         hmax = nn.functional.max_pool2d(
@@ -207,7 +223,8 @@ class CenterNetOperator(BaseOperator):
         keep = (hmax == heat).float()
         return heat * keep
 
-    def _gather_feat(self, feat, ind, mask=None):
+    @staticmethod
+    def _gather_feat(feat, ind, mask=None):
         dim = feat.size(2)
         ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
         feat = feat.gather(1, ind)
@@ -217,7 +234,8 @@ class CenterNetOperator(BaseOperator):
             feat = feat.view(-1, dim)
         return feat
 
-    def _ext_nms(self, pred_bbox):
+    @staticmethod
+    def _ext_nms(pred_bbox, gpu_id=None):
         if pred_bbox.size(0) == 0:
             return pred_bbox
         cls_unique = pred_bbox[:, 5].unique()
@@ -227,7 +245,7 @@ class CenterNetOperator(BaseOperator):
             bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-            keep_idx = nms(bbox_for_nms[:, :5], thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
+            keep_idx = nms(bbox_for_nms[:, :5], thresh=0.7, gpu_id=gpu_id)
             keep_bbox = bbox_for_nms[keep_idx]
             keep_bboxs.append(keep_bbox)
         keep_bboxs = np.concatenate(keep_bboxs, axis=0)
@@ -265,7 +283,7 @@ class CenterNetOperator(BaseOperator):
                 pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
 
                 # Do nms
-                pred_bbox1 = self._ext_nms(pred_bbox1)
+                pred_bbox1 = self._ext_nms(pred_bbox1, gpu_id=self.cfg.Distributed.gpu_id)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox1)
@@ -274,3 +292,4 @@ class CenterNetOperator(BaseOperator):
                 del pred_bbox1
                 print("\r[{}/{}]".format(step, all_step), end='', flush=True)
             print('=> Evaluation Done!')
+

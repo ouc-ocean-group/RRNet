@@ -104,6 +104,8 @@ class RandomCrop(object):
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
         else:
             annos = keep_annos
+            print(annos, crop_coordinate)
+            exit()
         cropped_annos = F.crop_annos(annos, crop_coordinate, self.h, self.w)
         cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos

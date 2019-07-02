@@ -96,26 +96,25 @@ def crop_annos(data, crop_coor, h, w):
     """
     Crop the annotations tensor.
     :param data: annotations tensor: xywh
-    :param crop_coor: crop coordinate: xywh
+    :param crop_coor: crop coordinate: xyxy
     :return: cropped annotations tensor xywh.
     """
     # Here we need to use iou to get the valid bounding box in cropped area.
     crop_coor_tensor = torch.tensor(crop_coor).float().unsqueeze(0)
-    data[:, 2:4] = data[:, :2] + data[:, 2:4]
-    _, olap = bbox_iou(data[:, :4], crop_coor_tensor, overlap=True)
-    keep_flag = (olap > 0.5).view(-1)
-    keep_data = data[keep_flag, :]
-    if keep_data.size(0) == 0:
-        return keep_data
-    keep_data[:, :4] -= crop_coor_tensor[:, :2].repeat(1, 2)
-    keep_data[keep_data[:, 0] < 0, 0] = 0
-    keep_data[keep_data[:, 1] < 0, 1] = 0
-    keep_data[keep_data[:, 2] > w, 2] = w
-    keep_data[keep_data[:, 3] > h, 3] = h
+    print(data, crop_coor_tensor)
+    exit()
+    data[:, 2:4] += data[:, :2]
+    data[:, :4] -= crop_coor_tensor[:, :2].repeat(1, 2)
+    data[data[:, 0] < 0, 0] = 0
+    data[data[:, 1] < 0, 1] = 0
+    data[data[:, 2] > w, 2] = w
+    data[data[:, 3] > h, 3] = h
 
-    keep_data[:, 2] = keep_data[:, 2] - keep_data[:, 0]
-    keep_data[:, 3] = keep_data[:, 3] - keep_data[:, 1]
-    return keep_data
+    data[:, 2] -= data[:, 0]
+    data[:, 3] -= data[:, 1]
+    print(data)
+    exit()
+    return data
 
 
 def normalize(data, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):

@@ -33,7 +33,7 @@ class CenterNetOperator(BaseOperator):
         # TODO: change it to our class
         self.focal_loss = FocalLossHM()
         self.l1_loss = RegL1Loss()
-        self.kl_loss = KLLoss(factor=0.2)
+        self.kl_loss = KLLoss(factor=0.1)
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0
 
@@ -58,7 +58,7 @@ class CenterNetOperator(BaseOperator):
             off_loss += self.l1_loss(offset, t_reg_masks, t_inds, t_offsets) / self.cfg.Model.num_stacks
 
             # Get KL Divers between small object feature and large object feature.
-            kl_loss += self.kl_loss(ori_feat, projected_feat, t_hms, t_whs, t_inds)
+            kl_loss += self.kl_loss(ori_feat, projected_feat, t_hms, t_whs, t_inds) / self.cfg.Model.num_stacks
 
         return hm_loss, wh_loss, off_loss, kl_loss
 

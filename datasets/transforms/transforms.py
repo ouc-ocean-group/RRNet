@@ -57,6 +57,19 @@ class RandomCrop(object):
         self.h, self.w = size
         self.keep_iou = keep_iou
 
+    def generate_coor(self, img):
+        h, w = img.size()[-2:]
+        rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
+        crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
+        return crop_coordinate
+
+    def remove_bbox_outside(self, annos, xywh):
+        _, overlap = bbox_iou(annos, xywh, x1y1x2y2=False, overlap=True)
+        keep_flag = overlap.squeeze() > self.keep_iou
+        annos = annos[keep_flag, :]
+        annos = annos.view(-1, 8)
+        return annos
+
     def __call__(self, data):
         assert isinstance(data[0], torch.Tensor)
         assert isinstance(data[1], torch.Tensor)
@@ -69,26 +82,26 @@ class RandomCrop(object):
             return img, data[1]
         if self.w > w or self.h > h:
             img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
-        h, w = img.size()[-2:]
-        rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
-        crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
+
+        crop_coordinate = self.generate_coor(img)
 
         annos = data[1].clone()
-        remove_large_flag = 1 - ((annos[:, 2] > self.w) + (annos[:, 3] > self.h)) > 0
-        annos = annos[remove_large_flag, :]
-        if annos.size(0) == 0:
+        remove_large_flag = 1 - (((annos[:, 2] > self.w) + (annos[:, 3] > self.h)) > 0)
+        annos_wo_large = annos[remove_large_flag, :]
+
+        if annos_wo_large.size(0) == 0:
+            # Means that current scale size is invalid.
             min_side = min(h, w)
-            # TODO: Not safe here, but I'm lazy.
             scale_factor = self.w / min_side
             img = interpolate(img.unsqueeze(0), scale_factor=scale_factor, mode='bilinear', align_corners=True).squeeze()
-            annos = data[1].clone()
-            annos[:, :4] = annos[:, :4] * scale_factor
+            annos_wo_large = data[1].clone()
+            annos_wo_large[:, :4] = annos_wo_large[:, :4] * scale_factor
 
-        iou = bbox_iou(annos, torch.tensor([[rx, ry, self.w, self.h]]), x1y1x2y2=False)
-        keep_flag = iou.squeeze() > self.keep_iou
-        keep_annos = annos[keep_flag, :]
+            crop_coordinate = self.generate_coor(img)
 
-        if keep_annos.size(0) == 0:
+        annos = self.remove_bbox_outside(annos_wo_large, torch.tensor([[crop_coordinate[0], crop_coordinate[1], self.w, self.h]]))
+
+        if annos.size(0) == 0:
             rand_idx = torch.randint(0, data[1].size(0), (1,))
             include_bbox = data[1][rand_idx, :].squeeze()
             x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
@@ -102,8 +115,7 @@ class RandomCrop(object):
             x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
             y1 = np.random.randint(min_y1, max_y1) if min_y1 != max_y1 else min_y1
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
-        else:
-            annos = keep_annos
+            annos = self.remove_bbox_outside(annos_wo_large, torch.tensor([[x1, y1, self.w, self.h]]))
         cropped_annos = F.crop_annos(annos, crop_coordinate, self.h, self.w)
         cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos

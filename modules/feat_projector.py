@@ -10,12 +10,9 @@ class FeatProjector(nn.Module):
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, planes * factor, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm2d(planes * factor)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU(True)
 
     def forward(self, x):
-        residual = x
-
         out = self.conv1(x)
         out = self.bn1(out)
         out = self.relu(out)
@@ -25,9 +22,5 @@ class FeatProjector(nn.Module):
         out = self.relu(out)
 
         out = self.conv3(out)
-        out = self.bn3(out)
-
-        out += residual
-        out = self.relu(out)
 
         return out

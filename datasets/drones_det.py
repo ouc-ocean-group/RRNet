@@ -35,7 +35,7 @@ class DronesDET(Dataset):
 
         # read annotation
         annotation = pd.read_csv(txt_name, header=None)
-        annotation = np.array(annotation)
+        annotation = np.array(annotation)[:, :8]
         annotation = annotation[annotation[:, 5] != 11]
         sample = (image, annotation)
 

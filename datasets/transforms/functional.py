@@ -96,24 +96,20 @@ def crop_annos(data, crop_coor, h, w):
     """
     Crop the annotations tensor.
     :param data: annotations tensor: xywh
-    :param crop_coor: crop coordinate: xyxy
+    :param crop_coor: crop coordinate: xywh
     :return: cropped annotations tensor xywh.
     """
     # Here we need to use iou to get the valid bounding box in cropped area.
     crop_coor_tensor = torch.tensor(crop_coor).float().unsqueeze(0)
-    print(data, crop_coor_tensor)
-    exit()
-    data[:, 2:4] += data[:, :2]
+    data[:, 2:4] = data[:, :2] + data[:, 2:4]
     data[:, :4] -= crop_coor_tensor[:, :2].repeat(1, 2)
     data[data[:, 0] < 0, 0] = 0
     data[data[:, 1] < 0, 1] = 0
     data[data[:, 2] > w, 2] = w
     data[data[:, 3] > h, 3] = h
 
-    data[:, 2] -= data[:, 0]
-    data[:, 3] -= data[:, 1]
-    print(data)
-    exit()
+    data[:, 2] = data[:, 2] - data[:, 0]
+    data[:, 3] = data[:, 3] - data[:, 1]
     return data
 
 

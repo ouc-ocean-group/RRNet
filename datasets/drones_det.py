@@ -28,7 +28,6 @@ class DronesDET(Dataset):
 
     def __getitem__(self, item):
         name = self.mdf[item]
-
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
         # read image
@@ -36,7 +35,7 @@ class DronesDET(Dataset):
 
         # read annotation
         annotation = pd.read_csv(txt_name, header=None)
-        annotation = np.array(annotation)
+        annotation = np.array(annotation)[:, :8]
         annotation = annotation[annotation[:, 5] != 11]
         sample = (image, annotation)
 

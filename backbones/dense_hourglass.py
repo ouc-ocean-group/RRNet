@@ -184,10 +184,13 @@ class HourglassNet(nn.Module):
         """
         pre_feat = self.pre_layer(x)
         outs = []
-
+        skip_feats = [pre_feat]
         for i in range(self.num_stacks):
             feat = self.hgs[i](pre_feat)
             feat = self.convs[i](feat)
+            for skip_feat in skip_feats:
+                feat = feat + skip_feat
+            skip_feats.append(feat)
             outs.append(feat)
             feat = torch.relu(feat)
 
@@ -199,12 +202,12 @@ class HourglassNet(nn.Module):
         return outs
 
 
-def hourglass_net(num_stacks=2):
+def dense_hourglass_net(num_stacks=2):
     """
     Make Hourglass Net.
     :param num_stacks: number of stacked blocks.
     :return: model
     """
     model = HourglassNet(num_stacks=num_stacks)
-    model.load_state_dict(torch.load('./hourglass.pth'))
+    model.load_state_dict(torch.load('./hourglass.pth'), strict=False)
     return model

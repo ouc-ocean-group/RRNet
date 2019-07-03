@@ -91,7 +91,6 @@ class CenterNetOperator(BaseOperator):
                 self.training_loader.sampler.set_epoch(epoch)
                 training_loader = iter(self.training_loader)
                 imgs, annos, hms, whs, inds, offsets, reg_masks, names = next(training_loader)
-
             imgs = imgs.cuda(self.cfg.Distributed.gpu_id)
             hms = hms.cuda(self.cfg.Distributed.gpu_id)
             whs = whs.cuda(self.cfg.Distributed.gpu_id)

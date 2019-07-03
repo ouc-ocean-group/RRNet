@@ -102,8 +102,8 @@ class RandomCrop(object):
         annos = self.remove_bbox_outside(annos_wo_large, torch.tensor([[crop_coordinate[0], crop_coordinate[1], self.w, self.h]]))
 
         if annos.size(0) == 0:
-            rand_idx = torch.randint(0, data[1].size(0), (1,))
-            include_bbox = data[1][rand_idx, :].squeeze()
+            rand_idx = torch.randint(0, annos_wo_large.size(0), (1,))
+            include_bbox = annos_wo_large[rand_idx, :].squeeze()
             x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
                              include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
             max_x1_ = min(x1, w - self.w)
@@ -117,6 +117,9 @@ class RandomCrop(object):
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
             annos = self.remove_bbox_outside(annos_wo_large, torch.tensor([[x1, y1, self.w, self.h]]))
         cropped_annos = F.crop_annos(annos, crop_coordinate, self.h, self.w)
+        if cropped_annos.size(0) == 0:
+            print(annos_wo_large, crop_coordinate)
+            exit()
         cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos
 

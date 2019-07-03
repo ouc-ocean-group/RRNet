@@ -3,10 +3,10 @@
 ### Build
 ```bash
     ./make.sh         # build
+    python test.py    # run examples and gradient check 
 ```
 
 ### An Example
-
 - deformable conv
 ```python
     from dcn_v2 import DCN

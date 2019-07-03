@@ -8,7 +8,7 @@ Config = edict()
 Config.seed = 219
 Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
-Config.log_prefix = 'CenterNet'
+Config.log_prefix = 'CenterNetKL'
 Config.use_tensorboard = True
 Config.num_classes = 10
 
@@ -27,9 +27,9 @@ Config.Train.lr = 2.5e-4
 Config.Train.momentum = 0.9
 Config.Train.weight_decay = 0.0001
 # Milestones for changing learning rage.
-Config.Train.lr_milestones = [72000, 96000]
+Config.Train.lr_milestones = [60000, 80000]
 
-Config.Train.iter_num = 120000
+Config.Train.iter_num = 100000
 
 # Transforms
 Config.Train.crop_size = (512, 512)

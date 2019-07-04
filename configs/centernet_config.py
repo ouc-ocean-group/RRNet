@@ -8,7 +8,7 @@ Config = edict()
 Config.seed = 219
 Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
-Config.log_prefix = 'CenterNetKL'
+Config.log_prefix = 'CenterNetKLMS'
 Config.use_tensorboard = True
 Config.num_classes = 10
 
@@ -37,6 +37,7 @@ Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.scale_factor = 4
 Config.Train.transforms = Compose([
+    MultiScale(scale=(1, 1.15, 1.25, 1.35, 1.5)),
     ToTensor(),
     MaskIgnore(Config.Train.mean),
     HorizontalFlip(),

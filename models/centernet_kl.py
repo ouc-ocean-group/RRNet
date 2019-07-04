@@ -13,11 +13,11 @@ class CenterNet(nn.Module):
         self.num_stacks = cfg.Model.num_stacks
         self.num_classes = cfg.num_classes
         self.backbone = get_backbone(cfg.Model.backbone, num_stacks=self.num_stacks)
-        self.dcn = nn.Sequential(
-            DCN(256, 256, 3, 1, 1),
-            nn.BatchNorm2d(256),
-            nn.ReLU()
-        )
+        # self.dcn = nn.Sequential(
+        #     DCN(256, 256, 3, 1, 1),
+        #     nn.BatchNorm2d(256),
+        #     nn.ReLU()
+        # )
         self.hm = CenterNetDetector(planes=cfg.num_classes, num_stacks=self.num_stacks, hm=True)
         self.wh = CenterNet_WH_Detector(planes=2, num_stacks=self.num_stacks)
         self.reg = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
@@ -35,7 +35,7 @@ class CenterNet(nn.Module):
             feats = torch.relu(pre_feats[i])
             projected_feat = self.feat_projector(feats)
             projected_feats.append(projected_feat)
-            feats = self.dcn(feats)
+            # feats = self.dcn(feats)
             hm = self.hm(feats, i)
             wh = self.wh(feats, i)
             reg = self.reg(feats, i)

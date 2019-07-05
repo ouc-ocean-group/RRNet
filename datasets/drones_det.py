@@ -4,10 +4,11 @@ from PIL import Image
 from torch.utils.data import Dataset
 import re
 from datasets.transforms import *
+import cv2
 
 
 class DronesDET(Dataset):
-    def __init__(self, root_dir, transforms=None, split='train'):
+    def __init__(self, root_dir, transforms=None, split='train', with_road_map=False):
         '''
         :param root_dir: root of annotations and image dirs
         :param transform: Optional transform to be applied
@@ -16,20 +17,20 @@ class DronesDET(Dataset):
         # get the csv
         self.images_dir = os.path.join(root_dir, split, 'images')
         self.annotations_dir = os.path.join(root_dir, split, 'annotations')
+        self.roadmap_dir = os.path.join(root_dir, split, 'roadmap')
         mdf = os.listdir(self.images_dir)
         restr = r'\w+?(?=(.jpg))'
         for index, mm in enumerate(mdf):
             mdf[index] = re.match(restr, mm).group()
         self.mdf = mdf
         self.transforms = transforms
+        self.with_road_map = with_road_map
 
     def __len__(self):
         return len(self.mdf)
 
     def __getitem__(self, item):
         name = self.mdf[item]
-        name = '0000204_01028_d_0000194'
-
         img_name = os.path.join(self.images_dir, '{}.jpg'.format(name))
         txt_name = os.path.join(self.annotations_dir, '{}.txt'.format(name))
         # read image
@@ -37,9 +38,16 @@ class DronesDET(Dataset):
 
         # read annotation
         annotation = pd.read_csv(txt_name, header=None)
-        annotation = np.array(annotation)
+        annotation = np.array(annotation)[:, :8]
         annotation = annotation[annotation[:, 5] != 11]
-        sample = (image, annotation)
+
+        # read road segmentation
+        roadmap = None
+        if self.with_road_map:
+            roadmap_name = os.path.join(self.roadmap_dir, '{}.jpg'.format(name))
+            roadmap = cv2.imread(roadmap_name)
+
+        sample = (image, annotation, roadmap)
 
         if self.transforms:
             sample = self.transforms(sample)

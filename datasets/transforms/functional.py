@@ -1,9 +1,12 @@
 import torch
 import random
+from PIL import Image
 import PIL.ImageEnhance as ImageEnhance
 import torchvision.transforms.functional as torchtransform
 from utils.metrics.metrics import bbox_iou
 import numpy as np
+import torch.nn.functional as F
+import math
 
 
 def flip_img(data):
@@ -52,6 +55,29 @@ def annos_to_tensor(data):
     return annos_tensor
 
 
+def roadmap_to_tensor(data):
+    """
+    Transform road map to tensor.
+    :param data: road map ndarray.
+    :return: road map tensor.
+    """
+    if data is not None:
+        roadmap_tensor = torch.tensor(data[:, :, 0]).float() / 255
+    else:
+        roadmap_tensor = None
+    return roadmap_tensor
+
+
+def resize(data, scale_factor):
+    img = data[0]
+    anno = data[1]
+    height, width = img.size[1], img.size[0]
+    out_height, out_width = int(height*scale_factor), int(width*scale_factor)
+    img = img.resize((out_width, out_height), Image.BILINEAR)
+    anno[:, :4] = anno[:, :4] * scale_factor
+    return img, anno
+
+
 def get_img_size(data):
     """
     Return the size of the input data.
@@ -91,20 +117,15 @@ def crop_annos(data, crop_coor, h, w):
     # Here we need to use iou to get the valid bounding box in cropped area.
     crop_coor_tensor = torch.tensor(crop_coor).float().unsqueeze(0)
     data[:, 2:4] = data[:, :2] + data[:, 2:4]
-    _, olap = bbox_iou(data[:, :4], crop_coor_tensor, overlap=True)
-    keep_flag = (olap > 0.5).view(-1)
-    keep_data = data[keep_flag, :]
-    if keep_data.size(0) == 0:
-        return keep_data
-    keep_data[:, :4] -= crop_coor_tensor[:, :2].repeat(1, 2)
-    keep_data[keep_data[:, 0] < 0, 0] = 0
-    keep_data[keep_data[:, 1] < 0, 1] = 0
-    keep_data[keep_data[:, 2] > w, 2] = w
-    keep_data[keep_data[:, 3] > h, 3] = h
+    data[:, :4] -= crop_coor_tensor[:, :2].repeat(1, 2)
+    data[data[:, 0] < 0, 0] = 0
+    data[data[:, 1] < 0, 1] = 0
+    data[data[:, 2] > w, 2] = w
+    data[data[:, 3] > h, 3] = h
 
-    keep_data[:, 2] = keep_data[:, 2] - keep_data[:, 0]
-    keep_data[:, 3] = keep_data[:, 3] - keep_data[:, 1]
-    return keep_data
+    data[:, 2] = data[:, 2] - data[:, 0]
+    data[:, 3] = data[:, 3] - data[:, 1]
+    return data
 
 
 def normalize(data, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)):
@@ -272,6 +293,7 @@ def mask_ignore(data, mean=(0.485, 0.456, 0.406), ignore_cls=0):
     """
     mean = torch.tensor(mean).unsqueeze(1).unsqueeze(1)
     img = data[0]
+    roadmap = data[2]
     ign_idx = data[1][:, 5] == ignore_cls
 
     ign_bboxes = data[1][ign_idx, :4]
@@ -279,10 +301,12 @@ def mask_ignore(data, mean=(0.485, 0.456, 0.406), ignore_cls=0):
     for ign_bbox in ign_bboxes:
         x, y, w, h = ign_bbox[:4]
         img[:, int(y):int(y + h), int(x):int(x + w)] = mean
+        if roadmap is not None:
+            roadmap[int(y):int(y + h), int(x):int(x + w)] = 0
 
     anno = data[1][1 - ign_idx, :]
 
-    return img, anno
+    return img, anno, roadmap
 
 
 DIRECTION = torch.tensor([[-1, -1], [-1, 0], [-1, 1],
@@ -347,4 +371,171 @@ def to_9box_heatmap(data, scale_factor=4, bias_factor=0.5):
     inds = torch.cat(inds, dim=1)
     masks = torch.cat(masks, dim=1)
 
-    return data[0], data[1], hm, whs, inds, offset, masks
+    return data[0], data[1], hm, whs, inds, offset, reg_mask
+
+
+def fill_duck(data, cls_list, factor):
+    img, annos, roadmap = data
+
+    # I. Get valid area.
+    valid_idx = roadmap.view(-1)
+    idx = torch.nonzero(valid_idx).view(-1)
+    if idx.size(0) == 0:
+        return img, annos
+    xs = idx % roadmap.size(1)
+    ys = idx // roadmap.size(1)
+    coor = torch.stack((xs, ys), dim=1)
+
+    annos_cls = annos[:, 5]
+
+    # II Calculate scale factor for depth.
+    people_flag = annos_cls == 1
+    people_bbox = annos[people_flag, :4]
+    if people_bbox.size(0) != 0:
+        people_diag = people_bbox[:, 2:4].pow(2).sum(dim=1).sqrt()
+        topk = min(3, people_diag.size(0))
+        max_diag, max_idx = torch.topk(people_diag, k=topk)
+        min_diag, min_idx = torch.topk(people_diag, k=1, largest=False)
+        y_diff = people_bbox[max_idx, 1] - people_bbox[min_idx, 1]
+        scale_factor = ((max_diag - min_diag) / (y_diff.abs() + 1e-5)).mean()
+    else:
+        scale_factor = 1
+
+    # III. For relation class.
+
+    people_flag = annos_cls == 2
+    people_select_annos = annos[people_flag, :]
+
+    relation_flag = torch.zeros_like(annos_cls).byte()
+
+    if people_select_annos.size(0) != 0:
+        iou = bbox_iou(people_select_annos[:, :4], annos[:, :4], x1y1x2y2=False)
+        if iou.size(1) > 2:
+            max_v, max_i = torch.topk(iou, dim=1, k=2)
+            flag = max_v[:, 1] > 0
+            max_i = max_i[flag, :]
+            people_idx = max_i[:, 0]
+            vechile_idx = max_i[:, 1]
+
+            relation_flag[people_idx] = 1
+            relation_flag[vechile_idx] = 1
+
+    # IV. Calculate aug N.
+    cls = cls_list.repeat(annos.size(0), 1)
+    normal_flag = (cls == annos_cls.unsqueeze(1).repeat(1, cls.size(1)).long()).sum(dim=1) > 0
+    normal_flag = normal_flag * (1 - relation_flag)
+
+    total_n = max(int(factor * valid_idx.sum()), 5)
+    relation_n = relation_flag.float().sum() / 2
+    normal_n = normal_flag.float().sum()
+    if relation_n + normal_n == 0:
+        return img, annos
+    r_n = int(relation_n / (relation_n + normal_n) * total_n)
+    n_n = total_n - r_n
+
+    # V. Fill image
+    paste_idx = torch.randint(low=0, high=coor.size(0), size=(total_n,))
+    paste_coors = coor[paste_idx]
+
+    new_annos = []
+    # 1. Sample normal object.
+    if n_n != 0:
+        normal_annos = annos[normal_flag, :]
+        sample_idx = torch.randint(low=0, high=normal_annos.size(0), size=(n_n,))
+        sample_annos = normal_annos[sample_idx]
+        for i, anno in enumerate(sample_annos):
+            paste_coor = paste_coors[i].float()
+
+            # Apply depth scale.
+            anno_ct_y = anno[1] + anno[3] / 2
+            diff = (anno_ct_y - paste_coor[1]).abs() * scale_factor
+            anno_diag = (anno[2].pow(2) + anno[3].pow(2)).sqrt()
+            if anno_ct_y > paste_coor[1]:
+                # Do reduce.
+                factor = 1 - diff / anno_diag
+            else:
+                factor = 1 + diff / anno_diag
+            cropped_obj = img[:, int(anno[1]):int(anno[1]+anno[3]), int(anno[0]):int(anno[0]+anno[2])]
+            factor = factor.clamp(min=0.5, max=2)
+            cropped_obj = F.interpolate(
+                cropped_obj.unsqueeze(0),
+                scale_factor=float(factor),
+                mode='bilinear',
+                align_corners=True
+            )[0]
+            obj_h, obj_w = cropped_obj.size()[-2:]
+            paste_coor[0] -= obj_w / 2
+            paste_coor[1] -= obj_h / 2
+            paste_coor[0] = paste_coor[0].clamp(min=1, max=img.size(2)-obj_w - 1)
+            paste_coor[1] = paste_coor[1].clamp(min=1, max=img.size(1)-obj_h - 1)
+            img[:, int(paste_coor[1]):int(paste_coor[1]+obj_h),
+                int(paste_coor[0]):int(paste_coor[0]+obj_w)] = cropped_obj
+            new_annos.append(torch.tensor([[int(paste_coor[0]), int(paste_coor[1]), obj_w, obj_h, anno[4], anno[5], anno[6], anno[7]]]))
+
+    # 2. Sample Relation Object.
+    if r_n != 0:
+        people_annos = annos[people_idx, :]
+        vechile_annos = annos[vechile_idx, :]
+
+        sample_idx = torch.randint(low=0, high=people_annos.size(0), size=(r_n,))
+        sample_people_annos = people_annos[sample_idx]
+        sample_vechile_annos = vechile_annos[sample_idx]
+        sample_people_annos[:, 2:4] += sample_people_annos[:, 0:2]
+        sample_vechile_annos[:, 2:4] += sample_vechile_annos[:, 0:2]
+
+        for i in range(r_n):
+            paste_coor = paste_coors[i + n_n].float()
+
+            people_anno = sample_people_annos[i]
+            vechile_anno = sample_vechile_annos[i]
+
+            min_x = int(min(people_anno[0], vechile_anno[0]))
+            min_y = int(min(people_anno[1], vechile_anno[1]))
+            max_x = int(max(people_anno[2], vechile_anno[2]))
+            max_y = int(max(people_anno[3], vechile_anno[3]))
+
+            # Apply depth scale.
+            anno_ct_y = (min_y + max_y) / 2
+            diff = (anno_ct_y - paste_coor[1]).abs() * scale_factor
+            anno_diag = math.sqrt((max_x-min_x)**2 + (max_y-min_y)**2)
+            if anno_ct_y > paste_coor[1]:
+                # Do reduce.
+                factor = 1 - diff / anno_diag
+            else:
+                factor = 1 + diff / anno_diag
+            cropped_obj = img[:, min_y:max_y, min_x:max_x]
+            factor = factor.clamp(min=0.5, max=2)
+            cropped_obj = F.interpolate(
+                cropped_obj.unsqueeze(0),
+                scale_factor=float(factor),
+                mode='bilinear',
+                align_corners=True
+            )[0]
+
+            obj_h, obj_w = cropped_obj.size()[-2:]
+            paste_coor[0] -= obj_w / 2
+            paste_coor[1] -= obj_h / 2
+            paste_coor[0] = paste_coor[0].clamp(min=1, max=img.size(2)-obj_w - 1)
+            paste_coor[1] = paste_coor[1].clamp(min=1, max=img.size(1)-obj_h - 1)
+            img[:, int(paste_coor[1]):int(paste_coor[1]+obj_h),
+                int(paste_coor[0]):int(paste_coor[0]+obj_w)] = cropped_obj
+            x_bias = min_x - paste_coor[0]
+            y_bias = min_y - paste_coor[1]
+            new_people = people_anno
+            new_people[2:4] -= new_people[0:2]
+            new_people[2:4] *= factor
+            new_people[0] -= x_bias
+            new_people[1] -= y_bias
+
+            new_vechile = vechile_anno
+            new_vechile[2:4] -= new_vechile[0:2]
+            new_vechile[2:4] *= factor
+            new_vechile[0] -= x_bias
+            new_vechile[1] -= y_bias
+
+            new_annos.append(new_people.unsqueeze(0))
+            new_annos.append(new_vechile.unsqueeze(0))
+    new_annos = torch.cat(new_annos)
+    annos = torch.cat((annos, new_annos))
+
+    return img, annos

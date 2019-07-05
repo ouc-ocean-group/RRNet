@@ -26,7 +26,7 @@ class HorizontalFlip(object):
 
 class ToTensor(object):
     def __call__(self, data):
-        return F.img_to_tensor(data[0]), F.annos_to_tensor(data[1])
+        return F.img_to_tensor(data[0]), F.annos_to_tensor(data[1]), F.roadmap_to_tensor(data[2])
 
 
 class Normalize(object):
@@ -238,3 +238,13 @@ class To9BoxHeatmap(object):
     def __call__(self, data):
         img, annos, hms, whs, inds, offset, reg_mask = F.to_9box_heatmap(data, self.scale_factor, self.bias_factor)
         return img, annos, hms, whs, inds, offset, reg_mask
+
+
+class FillDuck(object):
+    def __init__(self, cls_list=(1,), factor=0.00005):
+        self.cls_list = torch.tensor(cls_list).unsqueeze(0)
+        self.factor = factor
+
+    def __call__(self, data):
+        return F.fill_duck(data, self.cls_list, self.factor)
+

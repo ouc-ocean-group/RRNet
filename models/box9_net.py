@@ -7,21 +7,21 @@ from detectors.centernet_detector import CenterNetWHDetector
 from detectors.fasterrcnn_detector import FasterRCNNDetector
 
 
-class Box9Net(nn.Module):
+class TwoStageNet(nn.Module):
     def __init__(self, cfg):
-        super(Box9Net, self).__init__()
+        super(TwoStageNet, self).__init__()
         self.num_stacks = 1
         self.num_classes = cfg.num_classes
         self.backbone = get_backbone(cfg.Model.backbone, num_stacks=self.num_stacks)
         self.hm = CenterNetDetector(planes=9, num_stacks=self.num_stacks, hm=True)
         self.wh = CenterNetWHDetector(planes=18, num_stacks=self.num_stacks)
         self.offset_reg = CenterNetDetector(planes=18, num_stacks=self.num_stacks)
-
         self.head_detector = FasterRCNNDetector(self.num_classes)
 
     def forward(self, x, inds=None, k=100):
         # I. Forward Backbone
-        pre_feat = self.backbone(x)[0]
+        pre_feat = self.backbone(x)
+
         # II. Forward Stage 1 to generate heatmap, wh and offset.
         hm, wh, offset = self.forward_stage1(pre_feat)
         # III. Generate the true indices for Stage 1.
@@ -111,10 +111,18 @@ class Box9Net(nn.Module):
         return value, inds.long(), cls
 
     def forward_stage1(self, feat):
-        hm = self.hm(feat, 0)
-        stage1_wh = self.wh(feat, 0)
-        offset = self.offset_reg(feat, 0)
-        return hm, stage1_wh, offset
+        hms = []
+        whs = []
+        regs = []
+        for i in range(self.num_stacks):
+            feat = feat[i]
+
+            hm = self.hm(feat, i)
+            wh = self.wh(feat, i)
+            reg = self.reg(feat, i)
+            hms.append(hm)
+            whs.append(wh)
+            regs.append(reg)
 
     def forward_stage2(self, feats,):
         stage_cls, stage2_wh = self.head_detector(feats)

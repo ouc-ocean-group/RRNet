@@ -83,6 +83,7 @@ class RandomCrop(object):
         if self.w > w or self.h > h:
             img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
 
+        h, w = img.size()[-2:]
         crop_coordinate = self.generate_coor(img)
 
         annos = data[1].clone()
@@ -117,9 +118,7 @@ class RandomCrop(object):
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
             annos = self.remove_bbox_outside(annos_wo_large, torch.tensor([[x1, y1, self.w, self.h]]))
         cropped_annos = F.crop_annos(annos, crop_coordinate, self.h, self.w)
-        if cropped_annos.size(0) == 0:
-            print(annos_wo_large, crop_coordinate)
-            exit()
+
         cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos
 

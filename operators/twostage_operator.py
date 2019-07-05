@@ -17,7 +17,7 @@ from ext.nms.nms_wrapper import nms
 from utils.metrics.metrics import bbox_iou
 
 
-class Box9NetOperator(BaseOperator):
+class TwoStageOperator(BaseOperator):
     def __init__(self, cfg):
         self.cfg = cfg
 
@@ -28,7 +28,7 @@ class Box9NetOperator(BaseOperator):
 
         self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='box9net')
 
-        super(Box9NetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
+        super(TwoStageOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
         # TODO: change it to our class
         self.focal_loss = FocalLossHM()

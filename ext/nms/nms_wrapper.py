@@ -15,7 +15,8 @@ def soft_nms(dets, sigma=0.5, Nt=0.3, threshold=0.001, method=1):
                         np.float32(sigma), np.float32(Nt),
                         np.float32(threshold),
                         np.uint8(method))
-    return keep
+    results = dets[keep]
+    return results
 
 
 # Original NMS implementation
@@ -24,8 +25,12 @@ def nms(dets, thresh, gpu_id=0):
         return []
     else:
         if gpu_id is not None:
-            return gpu_nms(dets, thresh, device_id=gpu_id)
-        return cpu_nms(dets, thresh)
+            keep = gpu_nms(dets[:, :5], thresh, device_id=gpu_id)
+            results = dets[keep]
+            return results
+        keep = cpu_nms(dets[:, :5], thresh)
+        results = dets[keep]
+        return results
 
 
 if __name__ == '__main__':

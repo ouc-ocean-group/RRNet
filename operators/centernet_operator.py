@@ -15,6 +15,7 @@ from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 from ext.nms.nms_wrapper import nms, soft_nms
 import time
+import datasets.transforms.functional as functional
 
 
 class CenterNetOperator(BaseOperator):
@@ -150,7 +151,7 @@ class CenterNetOperator(BaseOperator):
                     self.save_ckp(self.model.module, step, logger.log_dir)
             print(time.time() - st)
 
-    def transform_bbox(self, hm, wh, offset, k=350, scale_factor=4):
+    def transform_bbox(self, hm, wh, offset, k=250, scale_factor=4):
         batchsize, cls_num, h, w = hm.size()
         hm = torch.sigmoid(hm)
 
@@ -256,16 +257,27 @@ class CenterNetOperator(BaseOperator):
         self.model.module.load_state_dict(state_dict)
         step = 0
         all_step = len(self.validation_loader)
-       
+
         with torch.no_grad():
             for data in self.validation_loader:
                 multi_scale_bboxes = []
                 step += 1
                 imgs, annos, names = data
                 imgs = imgs.cuda()
+
                 for scale in self.cfg.Val.scales:
                     img = imgs
                     img = F.interpolate(img, scale_factor=scale, mode='bilinear', align_corners=True)
+                    w = img.size()[3]
+                    img2 = img.squeeze(0)
+                    img2 = functional.flip_img(img2)
+                    img2 = img2.unsqueeze(0)
+                    outs = self.model(img2)
+                    hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
+                    pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
+                    pred_bbox1 = functional.flip_annos(pred_bbox1, w)
+                    pred_bbox1[:, :4] = pred_bbox1[:, :4] / scale
+                    multi_scale_bboxes.append(pred_bbox1)
                     outs = self.model(img)
                     hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
                     pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()

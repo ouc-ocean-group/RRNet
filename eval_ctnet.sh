@@ -2,7 +2,7 @@
 # Evaluation scripts for Center Net.
 
 # Set pretrained model path
-PRETRAINED_MODEL=zhangyu/25e-42xUPHWConv/CenterNet/ckp-99999.pth
+PRETRAINED_MODEL=zhangyu/MIXUP/ckp-99999.pth
 
 # Prepare for data.
 cd data

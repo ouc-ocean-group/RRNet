@@ -15,7 +15,8 @@ def soft_nms(dets, sigma=0.5, Nt=0.3, threshold=0.001, method=1):
                         np.float32(sigma), np.float32(Nt),
                         np.float32(threshold),
                         np.uint8(method))
-    return keep
+    results = dets[keep]
+    return results
 
 
 # Original NMS implementation

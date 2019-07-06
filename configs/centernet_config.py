@@ -1,9 +1,6 @@
 from datasets.transforms import *
 from torch.utils.data import DistributedSampler
 from easydict import EasyDict as edict
-import os
-
-env_param = os.environ
 
 # Base Config ============================================
 Config = edict()
@@ -16,7 +13,6 @@ Config.num_classes = 10
 
 # Training Config =========================================
 Config.Train = edict()
-# If use the pretrained backbone model.
 Config.Train.pretrained = True
 
 # Dataloader params.
@@ -60,7 +56,6 @@ Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1
 Config.Val.num_workers = 4
-# Config.Val.threshold = float(os.environ['THRESH'])
 Config.Val.scales = [1, 1.1, 1.2, 1.3, 1.4, 1.5]
 Config.Val.sampler = DistributedSampler
 

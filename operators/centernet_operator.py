@@ -14,7 +14,6 @@ from utils.vis.logger import Logger
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 from ext.nms.nms_wrapper import nms, soft_nms
-import time
 import datasets.transforms.functional as functional
 
 
@@ -71,7 +70,6 @@ class CenterNetOperator(BaseOperator):
         training_loader = iter(self.training_loader)
 
         for step in range(self.cfg.Train.iter_num):
-            st = time.time()
             self.lr_sch.step()
             self.optimizer.zero_grad()
 
@@ -149,7 +147,6 @@ class CenterNetOperator(BaseOperator):
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
                         step == self.cfg.Train.iter_num - 1:
                     self.save_ckp(self.model.module, step, logger.log_dir)
-            print(time.time() - st)
 
     def transform_bbox(self, hm, wh, offset, k=250, scale_factor=4):
         batchsize, cls_num, h, w = hm.size()
@@ -231,9 +228,8 @@ class CenterNetOperator(BaseOperator):
             bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-            # keep_idx = nms(bbox_for_nms[:, :5], thresh=0.7, gpu_id=self.cfg.Distributed.gpu_id)
+            # keep_bbox = nms(bbox_for_nms, thresh=0.7, gpu_id=self.cfg.Distributed.gpu_id)
             keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1 , method=2)
-            # keep_bbox = bbox_for_nms[keep_idx]
             keep_bboxs.append(keep_bbox)
         keep_bboxs = np.concatenate(keep_bboxs, axis=0)
         return torch.from_numpy(keep_bboxs)
@@ -283,13 +279,6 @@ class CenterNetOperator(BaseOperator):
                     pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
                     pred_bbox1[:, :4] = pred_bbox1[:, :4] / scale
                     multi_scale_bboxes.append(pred_bbox1)
-                    
-
-                #outs = self.model(imgs)
-
-                #hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
-                #pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
-
                 # Do nms
                 pred_bbox1 = torch.cat(multi_scale_bboxes, dim=0)
                 _, idx = torch.sort(pred_bbox1[:, 4], descending=True)

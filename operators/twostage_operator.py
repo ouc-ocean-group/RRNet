@@ -248,7 +248,7 @@ class TwoStageOperator(BaseOperator):
                 bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
                 bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
                 bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-                keep_bbox = soft_nms(bbox_for_nms[:, :5], Nt=0.7, threshold=0.1, method=2)
+                keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
                 keep_bboxs.append(keep_bbox)
             keep_bboxs = np.concatenate(keep_bboxs, axis=0)
         else:

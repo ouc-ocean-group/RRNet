@@ -227,7 +227,7 @@ class CenterNetOperator(BaseOperator):
             bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-            keep_idx = nms(bbox_for_nms[:, :5], thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
+            keep_idx = nms(bbox_for_nms, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
             keep_bbox = bbox_for_nms[keep_idx]
             keep_bboxs.append(keep_bbox)
         keep_bboxs = np.concatenate(keep_bboxs, axis=0)

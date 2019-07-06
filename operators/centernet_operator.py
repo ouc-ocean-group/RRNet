@@ -13,13 +13,14 @@ from datasets import make_dataloader
 from utils.vis.logger import Logger
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
-from ext.nms.nms_wrapper import nms
+from ext.nms.nms_wrapper import nms, soft_nms
+import datasets.transforms.functional as functional
 
 
 class CenterNetOperator(BaseOperator):
     def __init__(self, cfg):
         self.cfg = cfg
-
+        #print(self.cfg.Val.threshold)
         model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
@@ -147,7 +148,7 @@ class CenterNetOperator(BaseOperator):
                         step == self.cfg.Train.iter_num - 1:
                     self.save_ckp(self.model.module, step, logger.log_dir)
 
-    def transform_bbox(self, hm, wh, offset, k=850, scale_factor=4):
+    def transform_bbox(self, hm, wh, offset, k=250, scale_factor=4):
         batchsize, cls_num, h, w = hm.size()
         hm = torch.sigmoid(hm)
 
@@ -172,7 +173,7 @@ class CenterNetOperator(BaseOperator):
         pred_w = wh[..., 0:1] * scale_factor
         pred_h = wh[..., 1:2] * scale_factor
         pred = torch.cat([pred_x[0], pred_y[0], pred_w[0], pred_h[0], scores[0], clses[0]], dim=1)
-        pred = pred[pred[:, 4] > 0.1, :]
+        pred = pred[pred[:, 4] > 0.05, :]
         return pred
 
     def _transpose_and_gather_feat(self, feat, ind):
@@ -227,8 +228,8 @@ class CenterNetOperator(BaseOperator):
             bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-            keep_idx = nms(bbox_for_nms, thresh=0.3, gpu_id=self.cfg.Distributed.gpu_id)
-            keep_bbox = bbox_for_nms[keep_idx]
+            # keep_bbox = nms(bbox_for_nms, thresh=0.7, gpu_id=self.cfg.Distributed.gpu_id)
+            keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1 , method=2)
             keep_bboxs.append(keep_bbox)
         keep_bboxs = np.concatenate(keep_bboxs, axis=0)
         return torch.from_numpy(keep_bboxs)
@@ -248,23 +249,40 @@ class CenterNetOperator(BaseOperator):
     def evaluation_process(self):
         self.model.eval()
 
-        state_dict = torch.load(self.cfg.Val.model_path)
+        state_dict = torch.load(self.cfg.Val.model_path, map_location='cpu')
         self.model.module.load_state_dict(state_dict)
         step = 0
         all_step = len(self.validation_loader)
 
         with torch.no_grad():
             for data in self.validation_loader:
+                multi_scale_bboxes = []
                 step += 1
                 imgs, annos, names = data
                 imgs = imgs.cuda()
 
-                outs = self.model(imgs)
-
-                hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
-                pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
-
+                for scale in self.cfg.Val.scales:
+                    img = imgs
+                    img = F.interpolate(img, scale_factor=scale, mode='bilinear', align_corners=True)
+                    w = img.size()[3]
+                    img2 = img.squeeze(0)
+                    img2 = functional.flip_img(img2)
+                    img2 = img2.unsqueeze(0)
+                    outs = self.model(img2)
+                    hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
+                    pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
+                    pred_bbox1 = functional.flip_annos(pred_bbox1, w)
+                    pred_bbox1[:, :4] = pred_bbox1[:, :4] / scale
+                    multi_scale_bboxes.append(pred_bbox1)
+                    outs = self.model(img)
+                    hm, wh, offset = outs[0][1], outs[1][1], outs[2][1]
+                    pred_bbox1 = self.transform_bbox(hm, wh, offset, scale_factor=self.cfg.Train.scale_factor).cpu()
+                    pred_bbox1[:, :4] = pred_bbox1[:, :4] / scale
+                    multi_scale_bboxes.append(pred_bbox1)
                 # Do nms
+                pred_bbox1 = torch.cat(multi_scale_bboxes, dim=0)
+                _, idx = torch.sort(pred_bbox1[:, 4], descending=True)
+                pred_bbox1 = pred_bbox1[idx]
                 pred_bbox1 = self._ext_nms(pred_bbox1)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')

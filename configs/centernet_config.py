@@ -2,19 +2,17 @@ from datasets.transforms import *
 from torch.utils.data import DistributedSampler
 from easydict import EasyDict as edict
 
-
 # Base Config ============================================
 Config = edict()
 Config.seed = 219
 Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
-Config.log_prefix = 'CenterNetKL'
+Config.log_prefix = 'CenterNetKLMS'
 Config.use_tensorboard = True
 Config.num_classes = 10
 
 # Training Config =========================================
 Config.Train = edict()
-# If use the pretrained backbone model.
 Config.Train.pretrained = True
 
 # Dataloader params.
@@ -60,7 +58,8 @@ Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1
 Config.Val.num_workers = 4
-Config.Val.sampler = None
+Config.Val.scales = [1, 1.1, 1.2, 1.3, 1.4, 1.5]
+Config.Val.sampler = DistributedSampler
 
 # Transforms
 Config.Val.mean = (0.485, 0.456, 0.406)

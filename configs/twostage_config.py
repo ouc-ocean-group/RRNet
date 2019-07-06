@@ -8,7 +8,7 @@ Config = edict()
 Config.seed = 219
 Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
-Config.log_prefix = '9BoxNet'
+Config.log_prefix = 'TwoStageNet'
 Config.use_tensorboard = True
 Config.num_classes = 11  # with bg
 
@@ -18,8 +18,8 @@ Config.Train = edict()
 Config.Train.pretrained = True
 
 # Dataloader params.
-Config.Train.batch_size = 1
-Config.Train.num_workers = 1
+Config.Train.batch_size = 4
+Config.Train.num_workers = 4
 Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
@@ -36,19 +36,20 @@ Config.Train.crop_size = (512, 512)
 Config.Train.mean = (0.485, 0.456, 0.406)
 Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.scale_factor = 4
-Config.Train.bias_factor = 0.5
-
+Config.Train.with_road = True
 Config.Train.transforms = Compose([
+    MultiScale(scale=(1, 1.15, 1.25, 1.35, 1.5)),
     ToTensor(),
     MaskIgnore(Config.Train.mean),
-    # HorizontalFlip(),
-    # RandomCrop(Config.Train.crop_size),
+    FillDuck(),
+    HorizontalFlip(),
+    RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
-    To9BoxHeatmap(scale_factor=Config.Train.scale_factor, bias_factor=Config.Train.bias_factor)
+    ToTwoStageHeatmap(scale_factor=Config.Train.scale_factor)
 ])
 
 # Log params.
-Config.Train.print_interval = 5
+Config.Train.print_interval = 20
 Config.Train.checkpoint_interval = 15000
 
 
@@ -64,6 +65,7 @@ Config.Val.sampler = DistributedSampler
 # Transforms
 Config.Val.mean = (0.485, 0.456, 0.406)
 Config.Val.std = (0.229, 0.224, 0.225)
+Config.Val.scales = [1, 1.1, 1.2, 1.3, 1.4, 1.5]
 Config.Val.transforms = Compose([
     ToTensor(),
     Normalize(Config.Val.mean, Config.Val.std)

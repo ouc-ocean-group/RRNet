@@ -28,7 +28,7 @@ def nms(dets, thresh, gpu_id=0):
             keep = gpu_nms(dets[:, :5], thresh, device_id=gpu_id)
             results = dets[keep]
             return results
-        keep = cpu_nms(dets, thresh)
+        keep = cpu_nms(dets[:, :5], thresh)
         results = dets[keep]
         return results
 

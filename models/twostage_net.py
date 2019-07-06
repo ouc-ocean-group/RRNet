@@ -21,7 +21,6 @@ class TwoStageNet(nn.Module):
     def forward(self, x, k=1500):
         # I. Forward Backbone
         pre_feat = self.backbone(x)
-
         # II. Forward Stage 1 to generate heatmap, wh and offset.
         hms, whs, offsets = self.forward_stage1(pre_feat)
         # III. Generate the true indices for Stage 1.
@@ -46,7 +45,7 @@ class TwoStageNet(nn.Module):
         bxyxys = torch.cat(bxyxys, dim=0)
         scores = torch.cat(scores, dim=0)
         #  Generate the ROIAlign features.
-        roi_feat = torchvision.ops.roi_align(pre_feat[-1], bxyxys, (3, 3))
+        roi_feat = torchvision.ops.roi_align(torch.relu(pre_feat[-1]), bxyxys, (3, 3))
         # Forward Stage 2 to predict class and wh offset.
         stage2_cls, stage2_reg = self.forward_stage2(roi_feat)
         return hms, whs, offsets, stage2_cls, stage2_reg, bxyxys, scores
@@ -101,7 +100,7 @@ class TwoStageNet(nn.Module):
         offsets = []
         for i in range(self.num_stacks):
             feat = feats[i]
-
+            feat = torch.relu(feat)
             hm = self.hm(feat, i)
             wh = self.wh(feat, i)
             offset = self.offset_reg(feat, i)

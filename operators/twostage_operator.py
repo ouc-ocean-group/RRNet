@@ -77,9 +77,13 @@ class TwoStageOperator(BaseOperator):
             s2_cls_loss += self.focal_loss(pred_cls, gt_cls) / gt_cls.size(0) / bs
             # 3. Regression Loss
             if pos_idx.sum() == 0:
-                pos_idx = max_iou == max_iou.max()
+                pos_idx = torch.zeros_like(max_iou, device=max_iou.device).byte()
+                pos_idx[0] = 1
+                pos_factor = 0
+            else:
+                pos_factor = 1
             gt_reg = self.generate_bbox_target(bbox[pos_idx, :]*self.cfg.Train.scale_factor, gt_anno[max_idx[pos_idx], :4])
-            s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) / bs
+            s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) * pos_factor / bs
         return hm_loss, wh_loss, off_loss, s2_cls_loss, s2_reg_loss
 
     @staticmethod
@@ -243,7 +247,7 @@ class TwoStageOperator(BaseOperator):
                 bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
                 bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
                 bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
-                keep_idx = soft_nms(bbox_for_nms[:, :5], thresh=0.65, gpu_id=self.cfg.Distributed.gpu_id)
+                keep_idx = soft_nms(bbox_for_nms[:, :5], Nt=0.7, threshold=0.1, method=2)
                 keep_bbox = bbox_for_nms[keep_idx]
                 keep_bboxs.append(keep_bbox)
             keep_bboxs = np.concatenate(keep_bboxs, axis=0)

@@ -94,7 +94,7 @@ class DronesDET(Dataset):
         return imgs, annos, hms, whs, inds, offsets, reg_masks, names
 
     @staticmethod
-    def collate_fn_9boxnet(batch):
+    def collate_fn_twostage(batch):
         max_n = 0
         for i, batch_data in enumerate(batch):
             max_n = max(max_n, batch_data[1].size(0))
@@ -102,9 +102,9 @@ class DronesDET(Dataset):
         batchsize = len(batch)
         annos, whs, offsets, inds, reg_masks = \
             torch.zeros(batchsize, max_n, 8), \
-            torch.zeros(batchsize, max_n, 36), \
             torch.zeros(batchsize, max_n, 2), \
-            torch.zeros(batchsize, max_n, 9), \
+            torch.zeros(batchsize, max_n, 2), \
+            torch.zeros(batchsize, max_n, 1), \
             torch.zeros(batchsize, max_n, 1)
 
         for i, batch_data in enumerate(batch):

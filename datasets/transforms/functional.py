@@ -7,6 +7,7 @@ from utils.metrics.metrics import bbox_iou
 import numpy as np
 import torch.nn.functional as F
 import math
+import cv2
 
 
 def flip_img(data):
@@ -71,11 +72,14 @@ def roadmap_to_tensor(data):
 def resize(data, scale_factor):
     img = data[0]
     anno = data[1]
+    roadmap = data[2]
     height, width = img.size[1], img.size[0]
     out_height, out_width = int(height*scale_factor), int(width*scale_factor)
+    if roadmap is not None:
+        roadmap = cv2.resize(roadmap, (out_width, out_height), interpolation=cv2.INTER_NEAREST)
     img = img.resize((out_width, out_height), Image.BILINEAR)
     anno[:, :4] = anno[:, :4] * scale_factor
-    return img, anno
+    return img, anno, roadmap
 
 
 def get_img_size(data):
@@ -314,7 +318,7 @@ DIRECTION = torch.tensor([[-1, -1], [-1, 0], [-1, 1],
                           [1, -1], [1, 0], [1, 1]], dtype=torch.float)
 
 
-def to_9box_heatmap(data, scale_factor=4, bias_factor=0.5):
+def to_twostage_heatmap(data, scale_factor=4):
     """
     Transform annotations to heatmap.
     :param data: (img, annos), tensor
@@ -327,42 +331,26 @@ def to_9box_heatmap(data, scale_factor=4, bias_factor=0.5):
 
     h, w = img.size(1), img.size(2)
 
-    hm = torch.zeros(9, h // scale_factor, w // scale_factor)
+    hm = torch.zeros(1, h // scale_factor, w // scale_factor)
 
     annos[:, 2] += annos[:, 0]
     annos[:, 3] += annos[:, 1]
     annos[:, :4] = annos[:, :4] / scale_factor
+    cls_idx = torch.zeros_like(annos[:, 5])
     bboxs_h, bboxs_w = annos[:, 3:4] - annos[:, 1:2], annos[:, 2:3] - annos[:, 0:1]
 
     wh = torch.cat([bboxs_w, bboxs_h], dim=1)
-    bias = (wh * bias_factor/2.).floor().clamp(min=1)
 
     ct = torch.cat(((annos[:, 0:1] + annos[:, 2:3]) / 2., (annos[:, 1:2] + annos[:, 3:4]) / 2.), dim=1)
     ct_int = ct.floor()
     offset = ct - ct_int
     reg_mask = ((bboxs_h > 0) * (bboxs_w > 0))
-
-    whs = []
-    inds = []
-    for i in range(9):
-        direction = DIRECTION[i]
-        b = bias * direction
-        cur_ct = (ct_int + b).long()
-        hm[i, cur_ct[:, 1], cur_ct[:, 0]] = 1
-
-        cur_wh = wh.repeat(1, 2)
-        cur_wh[:, 0] += b[:, 0]
-        cur_wh[:, 1] += b[:, 1]
-        cur_wh[:, 2] -= b[:, 0]
-        cur_wh[:, 3] -= b[:, 1]
-        whs.append(cur_wh)
-
-        cur_ind = cur_ct[:, 1:2] * (w // 4) + cur_ct[:, 0:1]
-        inds.append(cur_ind)
-    whs = torch.cat(whs, dim=1)
-    inds = torch.cat(inds, dim=1)
-
-    return data[0], data[1], hm, whs, inds, offset, reg_mask
+    ind = ct_int[:, 1:2] * (w // scale_factor) + ct_int[:, 0:1]
+    radius = gaussian_radius((bboxs_h.ceil(), bboxs_w.ceil()))
+    radius = radius.floor().clamp(min=0)
+    for k, cls in enumerate(cls_idx):
+        draw_umich_gaussian(hm[cls.long().item()], ct_int[k], radius[k])
+    return data[0], data[1], hm, wh, ind, offset, reg_mask
 
 
 def fill_duck(data, cls_list, factor):
@@ -460,8 +448,8 @@ def fill_duck(data, cls_list, factor):
             paste_coor[0] = paste_coor[0].clamp(min=1, max=img.size(2)-obj_w - 1)
             paste_coor[1] = paste_coor[1].clamp(min=1, max=img.size(1)-obj_h - 1)
             img[:, int(paste_coor[1]):int(paste_coor[1]+obj_h),
-                int(paste_coor[0]):int(paste_coor[0]+obj_w)] = cropped_obj
-            new_annos.append(torch.tensor([[int(paste_coor[0]), int(paste_coor[1]), obj_w, obj_h, anno[4], anno[5], anno[6], anno[7]]]))
+            int(paste_coor[0]):int(paste_coor[0]+obj_w)] = cropped_obj
+            new_annos.append(torch.tensor([[int(paste_coor[0]), int(paste_coor[1]), int(obj_w), int(obj_h), anno[4], anno[5], anno[6], anno[7]]]))
 
     # 2. Sample Relation Object.
     if r_n != 0:
@@ -509,7 +497,7 @@ def fill_duck(data, cls_list, factor):
             paste_coor[0] = paste_coor[0].clamp(min=1, max=img.size(2)-obj_w - 1)
             paste_coor[1] = paste_coor[1].clamp(min=1, max=img.size(1)-obj_h - 1)
             img[:, int(paste_coor[1]):int(paste_coor[1]+obj_h),
-                int(paste_coor[0]):int(paste_coor[0]+obj_w)] = cropped_obj
+            int(paste_coor[0]):int(paste_coor[0]+obj_w)] = cropped_obj
             x_bias = min_x - paste_coor[0]
             y_bias = min_y - paste_coor[1]
             new_people = people_anno
@@ -524,8 +512,8 @@ def fill_duck(data, cls_list, factor):
             new_vechile[0] -= x_bias
             new_vechile[1] -= y_bias
 
-            new_annos.append(new_people.unsqueeze(0))
-            new_annos.append(new_vechile.unsqueeze(0))
+            new_annos.append(new_people.unsqueeze(0).floor())
+            new_annos.append(new_vechile.unsqueeze(0).floor())
     new_annos = torch.cat(new_annos)
     annos = torch.cat((annos, new_annos))
 

@@ -39,19 +39,6 @@ class Normalize(object):
         return F.normalize(data[0], self.mean, self.std), data[1]
 
 
-class NormalizeNTimes(object):
-    def __init__(self, mean=(0, 0, 0), std=(1, 1, 1), times=4):
-        self.mean = mean
-        self.std = std
-        self.times = times
-
-    def __call__(self, data):
-        assert len(data[0]) == self.times
-        norm = [F.normalize(data[0][i][0], self.mean, self.std) for i in range(self.times)]
-        annos = data[1]
-        return norm, annos
-
-
 class RandomCrop(object):
     def __init__(self, size, keep_iou=0.5):
         self.h, self.w = size
@@ -83,6 +70,7 @@ class RandomCrop(object):
         if self.w > w or self.h > h:
             img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
 
+        h, w = img.size()[-2:]
         crop_coordinate = self.generate_coor(img)
 
         annos = data[1].clone()
@@ -108,8 +96,8 @@ class RandomCrop(object):
                              include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
             max_x1_ = min(x1, w - self.w)
             max_y1_ = min(y1, h - self.h)
-            min_x1_ = max(0, x2 - self.w)
-            min_y1_ = max(0, y2 - self.h)
+            min_x1_ = max(0, int(x2 - self.w))
+            min_y1_ = max(0, int(y2 - self.h))
             min_x1, max_x1 = sorted([max_x1_, min_x1_])
             min_y1, max_y1 = sorted([max_y1_, min_y1_])
             x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
@@ -117,55 +105,9 @@ class RandomCrop(object):
             crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
             annos = self.remove_bbox_outside(annos_wo_large, torch.tensor([[x1, y1, self.w, self.h]]))
         cropped_annos = F.crop_annos(annos, crop_coordinate, self.h, self.w)
-        if cropped_annos.size(0) == 0:
-            print(annos_wo_large, crop_coordinate)
-            exit()
+
         cropped_img = F.crop_tensor(img, crop_coordinate)
         return cropped_img, cropped_annos
-
-
-class RandomCropNTimes(object):
-    def __init__(self, size, times=4):
-        self.h, self.w = size
-        self.times = times
-
-    def __call__(self, data):
-        assert isinstance(data[0], torch.Tensor)
-        assert isinstance(data[1], torch.Tensor)
-
-        img = data[0]
-        h, w = img.size()[-2:]
-        if (self.w, self.h) == (w, h):
-            imgs = data[0].unsqueeze(0).repeat(self.times, 1, 1, 1)
-            annos = data[1].unsqueeze(0).repeat(self.times, 1, 1)
-            return imgs, annos
-        if self.w > w or self.h > h:
-            img = pad(img, [0, max(self.w - w, 0), 0, max(self.h - h, 0)])
-        h, w = img.size()[-2:]
-        cropped_imgs, cropped_annoss = [], []
-        for t in range(self.times):
-            rx, ry = random.random() * (w - self.w), random.random() * (h - self.h)
-            crop_coordinate = int(rx), int(ry), int(rx) + self.w, int(ry) + self.h
-            cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
-            if cropped_annos.size(0) == 0:
-                rand_idx = torch.randint(0, data[1].size(0), (1,))
-                include_bbox = data[1][rand_idx, :].squeeze()
-                x1, y1, x2, y2 = include_bbox[0], include_bbox[1], \
-                                 include_bbox[0] + include_bbox[2], include_bbox[1] + include_bbox[3]
-                max_x1_ = min(x1, w - self.w)
-                max_y1_ = min(y1, h - self.h)
-                min_x1_ = max(0, x2 - self.w)
-                min_y1_ = max(0, y2 - self.h)
-                min_x1, max_x1 = sorted([max_x1_, min_x1_])
-                min_y1, max_y1 = sorted([max_y1_, min_y1_])
-                x1 = np.random.randint(min_x1, max_x1) if min_x1 != max_x1 else min_x1
-                y1 = np.random.randint(min_y1, max_y1) if min_y1 != max_y1 else min_y1
-                crop_coordinate = (int(x1), int(y1), int(x1) + self.w, int(y1) + self.h)
-                cropped_annos = F.crop_annos(data[1].clone(), crop_coordinate, self.h, self.w)
-            cropped_img = F.crop_tensor(img, crop_coordinate)
-            cropped_imgs.append(cropped_img.unsqueeze(0))
-            cropped_annoss.append(cropped_annos)
-        return cropped_imgs, cropped_annoss
 
 
 class ColorJitter(object):
@@ -193,24 +135,6 @@ class MaskIgnore(object):
         return F.mask_ignore(data, self.mean, self.ignore_idx)
 
 
-class MaskIgnoreNTimes(object):
-    def __init__(self, mean=(0.485, 0.456, 0.406), ignore_idx=0, times=4):
-        self.mean = mean
-        self.ignore_idx = ignore_idx
-        self.times = times
-
-    def __call__(self, data):
-        assert len(data[0]) == self.times
-        assert len(data[1]) == self.times
-
-        ig_data = [list(F.mask_ignore((data[0][i], data[1][i]), self.mean, self.ignore_idx)) for i in range(self.times)]
-        imgs, annos = [], []
-        for i in range(self.times):
-            imgs.append(ig_data[i][0])
-            annos.append(ig_data[i][1])
-        return imgs, annos
-
-
 class MultiScale(object):
     def __init__(self, scale=(0.5, 0.75, 1, 1.25, 1.5)):
         self.scale = scale
@@ -230,14 +154,13 @@ class ToHeatmap(object):
         return img, annos, hm, wh, ind, offset, reg_mask
 
 
-class To9BoxHeatmap(object):
-    def __init__(self, scale_factor=4, bias_factor=0.5):
+class ToTwoStageHeatmap(object):
+    def __init__(self, scale_factor=4):
         self.scale_factor = scale_factor
-        self.bias_factor = bias_factor
 
     def __call__(self, data):
-        img, annos, hms, whs, inds, offset, reg_mask = F.to_9box_heatmap(data, self.scale_factor, self.bias_factor)
-        return img, annos, hms, whs, inds, offset, reg_mask
+        img, annos, hm, wh, ind, offset, reg_mask = F.to_twostage_heatmap(data, self.scale_factor)
+        return img, annos, hm, wh, ind, offset, reg_mask
 
 
 class FillDuck(object):

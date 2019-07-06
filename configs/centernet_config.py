@@ -7,7 +7,7 @@ Config = edict()
 Config.seed = 219
 Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
-Config.log_prefix = 'CenterNetKLMS'
+Config.log_prefix = 'CenterNetMS'
 Config.use_tensorboard = True
 Config.num_classes = 10
 
@@ -18,7 +18,7 @@ Config.Train.pretrained = True
 # Dataloader params.
 Config.Train.batch_size = 4
 Config.Train.num_workers = 4
-Config.Train.sampler = None
+Config.Train.sampler = DistributedSampler
 
 # Optimizer params.
 Config.Train.lr = 2.5e-4

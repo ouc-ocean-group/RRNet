@@ -32,13 +32,12 @@ class TwoStageOperator(BaseOperator):
 
         # TODO: change it to our class
         self.hm_focal_loss = FocalLossHM()
-        self.focal_loss = FocalLoss()
         self.l1_loss = RegL1Loss()
 
         self.main_proc_flag = cfg.Distributed.gpu_id == 0
 
     def criterion(self, outs, targets):
-        s1_hms, s1_whs, s1_offsets, s2_cls, s2_reg, bxyxy, scores = outs
+        s1_hms, s1_whs, s1_offsets, s2_reg, bxyxy, scores, _ = outs
         gt_hms, gt_whs, gt_inds, gt_offsets, gt_reg_masks, gt_annos = targets
         bs = s1_hms[0].size(0)
         hm_loss = 0
@@ -58,8 +57,8 @@ class TwoStageOperator(BaseOperator):
             # OffSet Loss
             off_loss += self.l1_loss(s1_offset, gt_reg_masks, gt_inds, gt_offsets) / self.cfg.Model.num_stacks
 
-        # II. Stage2 Class Loss
-        s2_cls_loss, s2_reg_loss = 0, 0
+        # II. Stage2 Loss
+        s2_reg_loss = 0
         # Calculate IOU between prediction and bbox
         # 1. Transform bbox.
         gt_annos[:, :, 2:4] += gt_annos[:, :, 0:2]
@@ -70,12 +69,7 @@ class TwoStageOperator(BaseOperator):
             iou = torchvision.ops.box_iou(bbox*self.cfg.Train.scale_factor, gt_anno[:, :4])
             max_iou, max_idx = torch.max(iou, dim=1)
             pos_idx = max_iou > 0.5
-            # 2. Classification Loss
-            pred_cls = s2_cls[batch_flag]
-            gt_cls_idx = (gt_anno[max_idx, 5] * pos_idx.float()).long()
-            gt_cls = F.one_hot(gt_cls_idx, num_classes=self.cfg.num_classes).float()
-            s2_cls_loss += self.focal_loss(pred_cls, gt_cls) / gt_cls.size(0) / bs
-            # 3. Regression Loss
+            # 2. Regression Loss
             if pos_idx.sum() == 0:
                 pos_idx = torch.zeros_like(max_iou, device=max_iou.device).byte()
                 pos_idx[0] = 1
@@ -84,7 +78,7 @@ class TwoStageOperator(BaseOperator):
                 pos_factor = 1
             gt_reg = self.generate_bbox_target(bbox[pos_idx, :]*self.cfg.Train.scale_factor, gt_anno[max_idx[pos_idx], :4])
             s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) * pos_factor / bs
-        return hm_loss, wh_loss, off_loss, s2_cls_loss, s2_reg_loss
+        return hm_loss, wh_loss, off_loss, s2_reg_loss
 
     @staticmethod
     def generate_bbox_target(ex_rois, gt_rois):
@@ -114,7 +108,6 @@ class TwoStageOperator(BaseOperator):
         total_hm_loss = 0
         total_wh_loss = 0
         total_off_loss = 0
-        total_s2_cls_loss = 0
         total_s2_reg_loss = 0
 
         epoch = 0
@@ -143,14 +136,13 @@ class TwoStageOperator(BaseOperator):
 
             outs = self.model(imgs)
             targets = gt_hms, gt_whs, gt_inds, gt_offsets, gt_reg_masks, annos
+            hm_loss, wh_loss, offset_loss, s2_reg_loss = self.criterion(outs, targets)
 
-            hm_loss, wh_loss, offset_loss, s2_cls_loss, s2_reg_loss = self.criterion(outs, targets)
-
-            if step < 2000:
+            if step < 50:
                 s2_factor = 0
             else:
                 s2_factor = 1
-            loss = hm_loss + (0.1 * wh_loss) + offset_loss + s2_cls_loss*s2_factor + s2_reg_loss*s2_factor
+            loss = hm_loss + (0.1 * wh_loss) + offset_loss + s2_reg_loss*s2_factor
             loss.backward()
             self.optimizer.step()
 
@@ -158,7 +150,6 @@ class TwoStageOperator(BaseOperator):
             total_hm_loss += float(hm_loss)
             total_wh_loss += float(wh_loss)
             total_off_loss += float(offset_loss)
-            total_s2_cls_loss += float(s2_cls_loss)
             total_s2_reg_loss += float(s2_reg_loss)
 
             if self.main_proc_flag:
@@ -171,7 +162,6 @@ class TwoStageOperator(BaseOperator):
                         'train/hm_loss': total_hm_loss / self.cfg.Train.print_interval,
                         'train/wh_loss': total_wh_loss / self.cfg.Train.print_interval,
                         'train/off_loss': total_off_loss / self.cfg.Train.print_interval,
-                        'train/s2_cls_loss': total_s2_cls_loss / self.cfg.Train.print_interval,
                         'train/s2_reg_loss': total_s2_reg_loss / self.cfg.Train.print_interval,
                         'train/lr': lr
                     }}
@@ -198,7 +188,6 @@ class TwoStageOperator(BaseOperator):
                     total_hm_loss = 0
                     total_wh_loss = 0
                     total_off_loss = 0
-                    total_s2_cls_loss = 0
                     total_s2_reg_loss = 0
 
                 if step % self.cfg.Train.checkpoint_interval == self.cfg.Train.checkpoint_interval - 1 or \
@@ -206,34 +195,28 @@ class TwoStageOperator(BaseOperator):
                     self.save_ckp(self.model.module, step, logger.log_dir)
 
     def generate_bbox(self, outs, batch_idx=0):
-        s1_hms, s1_whs, s1_offsets, s2_cls, s2_reg, bxyxy, scores = outs
+        s1_hms, s1_whs, s1_offsets, s2_reg, bxyxy, scores, clses = outs
         batch_flag = bxyxy[:, 0] == batch_idx
-        s2_cls = s2_cls[batch_flag]
         s2_reg = s2_reg[batch_flag]
         xyxy = bxyxy[batch_flag, 1:] * self.cfg.Train.scale_factor
-        score = scores[batch_flag].sigmoid()
+        score = scores[batch_flag]
+        clses = clses[batch_flag]
 
         s1_xywh = xyxy
         s1_xywh[:, 2:4] -= s1_xywh[:, 0:2]
         s1_bboxes = torch.cat((s1_xywh, score.view(-1, 1), torch.zeros((s1_xywh.size(0), 1), device=xyxy.device)), dim=1)
 
         s2_xywh = s1_xywh
-        s2_xywh[:, 2:] += 1
+        s2_xywh[:, 2:4] += 1
         out_ctr_x = s2_reg[:, 0] * s2_xywh[:, 2] + s2_xywh[:, 0] + s2_xywh[:, 2] / 2
         out_ctr_y = s2_reg[:, 1] * s2_xywh[:, 3] + s2_xywh[:, 1] + s2_xywh[:, 3] / 2
         out_w = s2_reg[:, 2].exp() * s2_xywh[:, 2]
         out_h = s2_reg[:, 3].exp() * s2_xywh[:, 3]
         out_x = out_ctr_x - out_w / 2.
         out_y = out_ctr_y - out_h / 2.
-
-        s2_cls = torch.sigmoid(s2_cls)
-        prob, cls = s2_cls.max(dim=1)
-        pos_flag = cls != 0
-
-        s2_bboxes = torch.stack((out_x, out_y, out_w, out_h, prob, cls.float()), dim=1)[pos_flag, :]
-        _, idx = torch.sort(s2_bboxes[:, 4])
-        s2_bboxes = s2_bboxes[idx]
-
+        s2_bboxes = torch.stack((out_x, out_y, out_w, out_h, score, clses.float()+1), dim=1)
+        s1_bboxes = s1_bboxes[score > 0.05]
+        s2_bboxes = s2_bboxes[score > 0.05]
         return s1_bboxes, s2_bboxes
 
     @staticmethod

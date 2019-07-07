@@ -45,7 +45,7 @@ Config.Train.transforms = Compose([
     HorizontalFlip(),
     RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
-    ToTwoStageHeatmap(scale_factor=Config.Train.scale_factor)
+    ToHeatmap(scale_factor=Config.Train.scale_factor)
 ])
 
 # Log params.

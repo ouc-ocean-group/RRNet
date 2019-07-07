@@ -138,7 +138,7 @@ class TwoStageOperator(BaseOperator):
             targets = gt_hms, gt_whs, gt_inds, gt_offsets, gt_reg_masks, annos
             hm_loss, wh_loss, offset_loss, s2_reg_loss = self.criterion(outs, targets)
 
-            if step < 50:
+            if step < 2000:
                 s2_factor = 0
             else:
                 s2_factor = 1

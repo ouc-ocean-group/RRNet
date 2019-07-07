@@ -286,7 +286,8 @@ class TwoStageOperator(BaseOperator):
                     img = imgs
                     img = F.interpolate(img, scale_factor=scale, mode='bilinear', align_corners=True)
                     outs = self.model(img)
-                    pred_bbox = self.generate_bbox(outs).cpu()
+                    _, pred_bbox = self.generate_bbox(outs)
+                    pred_bbox = pred_bbox.cpu()
                     pred_bbox[:, :4] = pred_bbox[:, :4] / scale
                     multi_scale_bboxes.append(pred_bbox)
 

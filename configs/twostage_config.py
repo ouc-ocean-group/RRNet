@@ -50,7 +50,7 @@ Config.Train.transforms = Compose([
 
 # Log params.
 Config.Train.print_interval = 20
-Config.Train.checkpoint_interval = 15000
+Config.Train.checkpoint_interval = 5000
 
 
 # Validation Config =========================================

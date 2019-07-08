@@ -214,8 +214,8 @@ class TwoStageOperator(BaseOperator):
         out_x = out_ctr_x - out_w / 2.
         out_y = out_ctr_y - out_h / 2.
         s2_bboxes = torch.stack((out_x, out_y, out_w, out_h, score, clses.float()+1), dim=1)
-        s1_bboxes = s1_bboxes[score > 0.05]
-        s2_bboxes = s2_bboxes[score > 0.05]
+        s1_bboxes = s1_bboxes[score > 0.01]
+        s2_bboxes = s2_bboxes[score > 0.01]
         return s1_bboxes, s2_bboxes
 
     @staticmethod
@@ -276,7 +276,8 @@ class TwoStageOperator(BaseOperator):
                 pred_bbox = torch.cat(multi_scale_bboxes, dim=0)
                 _, idx = torch.sort(pred_bbox[:, 4], descending=True)
                 pred_bbox = pred_bbox[idx]
-                pred_bbox = self._ext_nms(pred_bbox)
+                if not self.cfg.Val.auto_test:
+                    pred_bbox = self._ext_nms(pred_bbox)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox)

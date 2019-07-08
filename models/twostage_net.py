@@ -60,12 +60,13 @@ class TwoStageNet(nn.Module):
             cls_unique = bbox[:, 5].unique()
             for cls in cls_unique:
                 cls_idx = bbox[:, 5] == cls
-                bbox_for_nms = bbox[cls_idx].detach().cpu().numpy()
+                bbox_for_nms = bbox[cls_idx]
                 if self.nms_type == 'soft_nms':
+                    bbox_for_nms = bbox_for_nms.detach().cpu().numpy()
                     keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
                     keep_bbox = torch.from_numpy(keep_bbox).to(device)
                 else:
-                    keep_idx = torchvision.ops.nms(bbox[:, :4], bbox[:, 4], 0.7)
+                    keep_idx = torchvision.ops.nms(bbox_for_nms[:, :4], bbox_for_nms[:, 4], 0.7)
                     keep_bbox = bbox_for_nms[keep_idx]
                 keep_bboxs.append(keep_bbox)
             keep_bboxs = torch.cat(keep_bboxs)

@@ -22,6 +22,7 @@ class CenterNetOperator(BaseOperator):
         self.cfg = cfg
         #print(self.cfg.Val.threshold)
         model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
+
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
@@ -173,7 +174,7 @@ class CenterNetOperator(BaseOperator):
         pred_w = wh[..., 0:1] * scale_factor
         pred_h = wh[..., 1:2] * scale_factor
         pred = torch.cat([pred_x[0], pred_y[0], pred_w[0], pred_h[0], scores[0], clses[0]], dim=1)
-        pred = pred[pred[:, 4] > 0.05, :]
+        pred = pred[pred[:, 4] > 0.01, :]
         return pred
 
     def _transpose_and_gather_feat(self, feat, ind):
@@ -229,7 +230,7 @@ class CenterNetOperator(BaseOperator):
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
             # keep_bbox = nms(bbox_for_nms, thresh=0.7, gpu_id=self.cfg.Distributed.gpu_id)
-            keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1 , method=2)
+            keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
             keep_bboxs.append(keep_bbox)
         keep_bboxs = np.concatenate(keep_bboxs, axis=0)
         return torch.from_numpy(keep_bboxs)
@@ -284,7 +285,8 @@ class CenterNetOperator(BaseOperator):
                 pred_bbox1 = torch.cat(multi_scale_bboxes, dim=0)
                 _, idx = torch.sort(pred_bbox1[:, 4], descending=True)
                 pred_bbox1 = pred_bbox1[idx]
-                pred_bbox1 = self._ext_nms(pred_bbox1)
+                if not self.cfg.Val.auto_test:
+                    pred_bbox1 = self._ext_nms(pred_bbox1)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox1)

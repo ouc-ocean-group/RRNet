@@ -4,6 +4,7 @@ import pandas as pd
 import glob
 import os
 import time
+from ext.nms.nms_wrapper import nms, soft_nms
 
 
 def bbox_iou(a, b, x1y1x2y2=True, overlap=False):
@@ -245,3 +246,69 @@ def evaluate_results(pred_dir, target_dir, thresholds=torch.arange(0.5, 1.0, 0.0
     print("Average Precision  (AP) @[ IoU=0.75     ] = {:.4}.".format(ap[5].item()))
     print("Average Recall     (AR) @[ IoU=0.50:0.95] = {:.4}.".format(rc.item()))
     print("Cost Time: {}s".format(time.time() - st))
+
+
+def auto_evaluate_results(pred_dir, target_dir, ctnet_min_threshold, softnms_min_threshold, thresholds=torch.arange(0.5, 1.0, 0.05), cls_num=11, max_det_num=500):
+        """
+        Evaluate AP and Recall between many prediction files and ground truth files.
+        :param pred_dir: String, prediction dir.
+        :param target_dir: String target annotation dir.
+        :param thresholds: Tensor, IoU Thresholds.
+        :param cls_num: Int, Class number.
+        :param max_det_num: Int Max number of the prediction bbox.
+        :return: None
+        """
+        threshold_num = thresholds.size(0)
+        st = time.time()
+        pred_list = [x.split('/')[-1].split('.')[0] for x in glob.glob(os.path.join(pred_dir, '*.txt'))]
+
+        cls_target_count = torch.zeros(cls_num - 1)
+        cls_in_img_count = torch.zeros(cls_num - 1)
+
+        cls_tp_flags = [torch.zeros(0, threshold_num) for _ in range(1, cls_num)]  # Except ignore class
+        cls_tp_confs = [torch.zeros(0) for _ in range(1, cls_num)]
+
+        for name in pred_list:
+            pred = pd.read_csv(os.path.join(pred_dir, "{}.txt".format(name)), header=None, float_precision='high')
+            target = pd.read_csv(os.path.join(target_dir, "{}.txt".format(name)), header=None, float_precision='high')
+            pred = np.array(pred)
+            target = np.array(target)
+            # fist filter
+            pred = torch.from_numpy(pred[pred[:, 4] > ctnet_min_threshold]).float()
+            # second filter
+            pred = _ext_nms(pred, softnms_min_threshold)
+
+            pred = torch.from_numpy(pred).float()[:max_det_num]
+            target = torch.from_numpy(target).float()[:max_det_num]
+
+            cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count = \
+                get_tp(pred, target,
+                       cls_tp_flags, cls_tp_confs,
+                       cls_target_count, cls_in_img_count,
+                       thresholds, cls_num)
+        ap, rc = calculate_ap_rc(cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count)
+
+        print("Average Precision  (AP) @[ IoU=0.50:0.95] = {:.4}.".format(ap.mean().item()))
+        print("Average Precision  (AP) @[ IoU=0.50     ] = {:.4}.".format(ap[0].item()))
+        print("Average Precision  (AP) @[ IoU=0.75     ] = {:.4}.".format(ap[5].item()))
+        print("Average Recall     (AR) @[ IoU=0.50:0.95] = {:.4}.".format(rc.item()))
+        print("Cost Time: {}s".format(time.time() - st))
+
+
+def _ext_nms(pred_bbox, threshold):
+    if pred_bbox.size(0) == 0:
+        return pred_bbox
+    cls_unique = pred_bbox[:, 5].unique()
+    keep_bboxs = []
+    for cls in cls_unique:
+        cls_idx = pred_bbox[:, 5] == cls
+        bbox_for_nms = pred_bbox[cls_idx].detach().cpu().numpy()
+        bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
+        bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
+        # keep_bbox = nms(bbox_for_nms, thresh=0.7, gpu_id=self.cfg.Distributed.gpu_id)
+        keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=threshold, method=2)
+        keep_bboxs.append(keep_bbox)
+    keep_bboxs = np.concatenate(keep_bboxs, axis=0)
+    keep_bboxs[:, 2] = keep_bboxs[:, 2] - keep_bboxs[:, 0]
+    keep_bboxs[:, 3] = keep_bboxs[:, 3] - keep_bboxs[:, 1]
+    return keep_bboxs

@@ -10,7 +10,7 @@ Config.dataset = 'drones_det'
 Config.data_root = './data/DronesDET'
 Config.log_prefix = 'TwoStageNet'
 Config.use_tensorboard = True
-Config.num_classes = 11  # with bg
+Config.num_classes = 10
 
 # Training Config =========================================
 Config.Train = edict()
@@ -45,7 +45,7 @@ Config.Train.transforms = Compose([
     HorizontalFlip(),
     RandomCrop(Config.Train.crop_size),
     Normalize(Config.Train.mean, Config.Train.std),
-    ToTwoStageHeatmap(scale_factor=Config.Train.scale_factor)
+    ToHeatmap(scale_factor=Config.Train.scale_factor)
 ])
 
 # Log params.
@@ -55,7 +55,7 @@ Config.Train.checkpoint_interval = 15000
 
 # Validation Config =========================================
 Config.Val = edict()
-Config.Val.model_path = './log/ckp-99999.pth'
+Config.Val.model_path = './log/{}/ckp-99999.pth'.format(Config.log_prefix)
 Config.Val.is_eval = True
 # Dataloader params.
 Config.Val.batch_size = 1
@@ -77,10 +77,9 @@ Config.Val.result_dir = './results/'
 Config.Model = edict()
 
 Config.Model.backbone = 'hourglass'
-Config.Model.hm_detector = 'centernet_detector'
-Config.Model.wh_detector = 'centernet_WH_detector'
-Config.Model.reg_detector = 'centernet_detector'
 Config.Model.num_stacks = 2
+Config.Model.nms_type_for_stage1 = 'nms'  # or 'soft_nms'
+Config.Model.nms_per_class_for_stage1 = False
 
 # Distributed Config =========================================
 Config.Distributed = edict()

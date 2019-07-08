@@ -71,10 +71,10 @@ class Logger(object):
         :param log_prefix: Prefix of the log dir.
         :return: True log path.
         """
-        utc_time = datetime.utcnow()
-        tz_cn = timezone(timedelta(hours=8))
-        local_datetime = utc_time.astimezone(tz_cn)
-        log_dir = os.path.join('./log/{}-{}'.format(log_prefix, local_datetime.isoformat(timespec='seconds')))
+        # utc_time = datetime.utcnow()
+        # tz_cn = timezone(timedelta(hours=8))
+        # local_datetime = utc_time.astimezone(tz_cn)
+        log_dir = os.path.join('./log/{}'.format(log_prefix))
         os.makedirs(log_dir)
         return log_dir
 

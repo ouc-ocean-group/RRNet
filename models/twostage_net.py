@@ -5,6 +5,7 @@ from utils.model_tools import get_backbone
 from detectors.centernet_detector import CenterNetDetector
 from detectors.centernet_detector import CenterNetWHDetector
 from detectors.fasterrcnn_detector import FasterRCNNDetector
+from ext.nms.nms_wrapper import soft_nms
 
 
 class TwoStageNet(nn.Module):
@@ -12,87 +13,128 @@ class TwoStageNet(nn.Module):
         super(TwoStageNet, self).__init__()
         self.num_stacks = cfg.Model.num_stacks
         self.num_classes = cfg.num_classes
+        self.nms_type = cfg.Model.nms_type_for_stage1
+        self.nms_per_class = cfg.Model.nms_per_class_for_stage1
+
         self.backbone = get_backbone(cfg.Model.backbone, num_stacks=self.num_stacks)
-        self.hm = CenterNetDetector(planes=1, num_stacks=self.num_stacks, hm=True)
+        self.hm = CenterNetDetector(planes=self.num_classes, num_stacks=self.num_stacks, hm=True)
         self.wh = CenterNetWHDetector(planes=1, num_stacks=self.num_stacks)
         self.offset_reg = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
-        self.head_detector = FasterRCNNDetector(self.num_classes)
+        self.head_detector = FasterRCNNDetector()
 
     def forward(self, x, k=1500):
         # I. Forward Backbone
         pre_feat = self.backbone(x)
         # II. Forward Stage 1 to generate heatmap, wh and offset.
         hms, whs, offsets = self.forward_stage1(pre_feat)
-        # III. Generate the true indices for Stage 1.
-        value, inds, = self.get_inds(hms[1], k)  # inds: (b, k)
+        # III. Generate the true xywh for Stage 1.
+        bboxs = self.transform_bbox(hms[-1], whs[-1], offsets[-1], k)  # (bs, k, 6)
 
         # IV. Stage 2.
         bxyxys = []
         scores = []
-        for b_idx in range(inds.size(0)):
-            # Select stage1_wh and offset by indices.
-            stage1_wh = self.select_tensor(whs[1][b_idx], inds[b_idx])
-            stage1_offset = self.select_tensor(offsets[1][b_idx], inds[b_idx])
+        clses = []
+        for b_idx in range(bboxs.size(0)):
             # Do nms
-            xyxy = self.inds_to_xyxy(inds[b_idx], stage1_wh, stage1_offset, hms[1].size(3))
-            keep_idx = torchvision.ops.nms(xyxy, value[b_idx].sigmoid(), 0.7)
-            xyxy = xyxy[keep_idx, :]
-            score = value[b_idx][keep_idx]
-            scores.append(score)
+            bbox = bboxs[b_idx]
+            bbox = self.nms(bbox)
+            xyxy = bbox[:, :4]
+            scores.append(bbox[:, 4])
+            clses.append(bbox[:, 5])
             batch_idx = torch.ones((xyxy.size(0), 1), device=xyxy.device) * b_idx
             bxyxy = torch.cat((batch_idx, xyxy), dim=1)
             bxyxys.append(bxyxy)
         bxyxys = torch.cat(bxyxys, dim=0)
         scores = torch.cat(scores, dim=0)
+        clses = torch.cat(clses, dim=0)
         #  Generate the ROIAlign features.
         roi_feat = torchvision.ops.roi_align(torch.relu(pre_feat[-1]), bxyxys, (3, 3))
-        # Forward Stage 2 to predict class and wh offset.
-        stage2_cls, stage2_reg = self.forward_stage2(roi_feat)
-        return hms, whs, offsets, stage2_cls, stage2_reg, bxyxys, scores
+        # Forward Stage 2 to predict and wh offset.
+        stage2_reg = self.forward_stage2(roi_feat)
+        return hms, whs, offsets, stage2_reg, bxyxys, scores, clses
+
+    def nms(self, bbox):
+        device = bbox.device
+        keep_bboxs = []
+        if self.nms_per_class:
+            cls_unique = bbox[:, 5].unique()
+            for cls in cls_unique:
+                cls_idx = bbox[:, 5] == cls
+                bbox_for_nms = bbox[cls_idx].detach().cpu().numpy()
+                if self.nms_type == 'soft_nms':
+                    keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
+                    keep_bbox = torch.from_numpy(keep_bbox).to(device)
+                else:
+                    keep_idx = torchvision.ops.nms(bbox[:, :4], bbox[:, 4], 0.7)
+                    keep_bbox = bbox_for_nms[keep_idx]
+                keep_bboxs.append(keep_bbox)
+            keep_bboxs = torch.cat(keep_bboxs)
+        else:
+            if self.nms_type == 'soft_nms':
+                keep_bboxs = soft_nms(bbox.detach().cpu().numpy(), Nt=0.7, threshold=0.1, method=2)
+                keep_bboxs = torch.from_numpy(keep_bboxs).to(device)
+            else:
+                keep_idx = torchvision.ops.nms(bbox[:, :4], bbox[:, 4], 0.7)
+                keep_bboxs = bbox[keep_idx]
+        return keep_bboxs
 
     @staticmethod
-    def inds_to_xyxy(inds, wh, offset, width):
-        xs = (inds % width).float()  # (n)
-        ys = (inds // width).float()  # (n)
+    def _gather_feat(feat, ind, mask=None):
+        dim = feat.size(2)
+        ind = ind.unsqueeze(2).expand(ind.size(0), ind.size(1), dim)
+        feat = feat.gather(1, ind)
+        if mask is not None:
+            mask = mask.unsqueeze(2).expand_as(feat)
+            feat = feat[mask]
+            feat = feat.view(-1, dim)
+        return feat
 
-        wh = wh.clamp(min=0)
-        point_x = xs + offset[:, 0]  # (n)
-        point_y = ys + offset[:, 1]  # (n)
+    def _topk(self, scores, k=1500):
+        batch, cat, height, width = scores.size()
 
-        x1 = (point_x - wh[:, 0]/2)
-        y1 = (point_y - wh[:, 1]/2)
-        x2 = x1 + wh[:, 0]
-        y2 = y1 + wh[:, 1]
-        xyxy = torch.stack((x1, y1, x2, y2), dim=1)
-        return xyxy
+        topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), k)
 
-    @staticmethod
-    def select_tensor(tensor, inds):
-        """
-        Select tensor by indices.
-        :param tensor: (c, h, w)
-        :param inds: (k) k is from 0 to h*w
-        :return: (n, c)
-        """
-        c, h, w = tensor.size()
-        tensor = tensor.view(c, -1).permute(1, 0)  # ([h*w], c)
-        selected_tensor = tensor[inds, :]
-        return selected_tensor
+        topk_inds = topk_inds % (height * width)
+        topk_ys = (topk_inds / width).int().float()
+        topk_xs = (topk_inds % width).int().float()
 
-    @staticmethod
-    def get_inds(hm, k=2000):
-        """
-        Get the indices for bbox generating, then use these bbox an ROIAlign to generate the final class and
-        wh offset in stage2.
-        :param hm: (b, 1, h, w)
-        :param inds: None or (b, n, 1)
-        :param k: keep top k indices if inds is None.
-        :return:
-        """
-        bs, _, h, w = hm.size()
-        hm = hm.view(bs, -1)
-        top_v, top_inds = torch.topk(hm, k)  # (bs, k)
-        return top_v, top_inds.long()
+        topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), k)
+        topk_clses = (topk_ind / k).int()
+        topk_inds = self._gather_feat(
+            topk_inds.view(batch, -1, 1), topk_ind).view(batch, k)
+        topk_ys = self._gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, k)
+        topk_xs = self._gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, k)
+
+        return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
+
+    def _transpose_and_gather_feat(self, feat, ind):
+        feat = feat.permute(0, 2, 3, 1).contiguous()
+        feat = feat.view(feat.size(0), -1, feat.size(3))
+        feat = self._gather_feat(feat, ind)
+        return feat
+
+    def transform_bbox(self, hm, wh, offset, k=250):
+        batchsize, cls_num, h, w = hm.size()
+        hm = torch.sigmoid(hm)
+
+        scores, inds, clses, ys, xs = self._topk(hm, k)
+
+        offset = self._transpose_and_gather_feat(offset, inds)
+        offset = offset.view(batchsize, k, 2)
+        xs = xs.view(batchsize, k, 1) + offset[:, :, 0:1]
+        ys = ys.view(batchsize, k, 1) + offset[:, :, 1:2]
+        wh = self._transpose_and_gather_feat(wh, inds).clamp(min=0)
+
+        wh = wh.view(batchsize, k, 2)
+        clses = clses.view(batchsize, k, 1).float()
+        scores = scores.view(batchsize, k, 1)
+
+        pred_x = (xs - wh[..., 0:1] / 2)
+        pred_y = (ys - wh[..., 1:2] / 2)
+        pred_w = wh[..., 0:1]
+        pred_h = wh[..., 1:2]
+        pred = torch.cat([pred_x, pred_y, pred_w + pred_x, pred_h + pred_y, scores, clses], dim=2)
+        return pred
 
     def forward_stage1(self, feats):
         hms = []
@@ -110,5 +152,5 @@ class TwoStageNet(nn.Module):
         return hms, whs, offsets
 
     def forward_stage2(self, feats,):
-        stage_cls, stage2_wh = self.head_detector(feats)
-        return stage_cls, stage2_wh
+        stage2_reg = self.head_detector(feats)
+        return stage2_reg

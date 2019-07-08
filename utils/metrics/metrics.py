@@ -276,7 +276,7 @@ def auto_evaluate_results(pred_dir, target_dir, ctnet_min_threshold, softnms_min
             # fist filter
             pred = torch.from_numpy(pred[pred[:, 4] > ctnet_min_threshold]).float()
             # second filter
-            pred = _ext_nms(pred)
+            pred = _ext_nms(pred, softnms_min_threshold)
 
             pred = torch.from_numpy(pred).float()[:max_det_num]
             target = torch.from_numpy(target).float()[:max_det_num]
@@ -295,7 +295,7 @@ def auto_evaluate_results(pred_dir, target_dir, ctnet_min_threshold, softnms_min
         print("Cost Time: {}s".format(time.time() - st))
 
 
-def _ext_nms(pred_bbox):
+def _ext_nms(pred_bbox, threshold):
     if pred_bbox.size(0) == 0:
         return pred_bbox
     cls_unique = pred_bbox[:, 5].unique()
@@ -306,7 +306,7 @@ def _ext_nms(pred_bbox):
         bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
         bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
         # keep_bbox = nms(bbox_for_nms, thresh=0.7, gpu_id=self.cfg.Distributed.gpu_id)
-        keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
+        keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=threshold, method=2)
         keep_bboxs.append(keep_bbox)
     keep_bboxs = np.concatenate(keep_bboxs, axis=0)
     keep_bboxs[:, 2] = keep_bboxs[:, 2] - keep_bboxs[:, 0]

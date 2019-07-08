@@ -22,8 +22,8 @@ class CenterNetOperator(BaseOperator):
         self.cfg = cfg
         #print(self.cfg.Val.threshold)
         model = CenterNet(cfg).cuda(cfg.Distributed.gpu_id)
-        sync_model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-        self.optimizer = optim.Adam(sync_model.parameters(), lr=cfg.Train.lr)
+
+        self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
 

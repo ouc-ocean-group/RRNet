@@ -55,6 +55,8 @@ Config.Train.checkpoint_interval = 15000
 Config.Val = edict()
 Config.Val.model_path = './log/ckp-99999.pth'
 Config.Val.is_eval = True
+Config.Val.auto_test = True
+
 # Dataloader params.
 Config.Val.batch_size = 1
 Config.Val.num_workers = 4

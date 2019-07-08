@@ -5,6 +5,7 @@ from utils.model_tools import get_backbone
 from detectors.centernet_detector import CenterNetDetector
 from detectors.centernet_detector import CenterNetWHDetector
 from detectors.fasterrcnn_detector import FasterRCNNDetector
+from ext.nms.nms_wrapper import soft_nms
 
 
 class TwoStageNet(nn.Module):
@@ -12,8 +13,11 @@ class TwoStageNet(nn.Module):
         super(TwoStageNet, self).__init__()
         self.num_stacks = cfg.Model.num_stacks
         self.num_classes = cfg.num_classes
+        self.nms_type = cfg.Model.nms_type_for_stage1
+        self.nms_per_class = cfg.Model.nms_per_class_for_stage1
+
         self.backbone = get_backbone(cfg.Model.backbone, num_stacks=self.num_stacks)
-        self.hm = CenterNetDetector(planes=10, num_stacks=self.num_stacks, hm=True)
+        self.hm = CenterNetDetector(planes=self.num_classes, num_stacks=self.num_stacks, hm=True)
         self.wh = CenterNetWHDetector(planes=1, num_stacks=self.num_stacks)
         self.offset_reg = CenterNetDetector(planes=2, num_stacks=self.num_stacks)
         self.head_detector = FasterRCNNDetector()
@@ -33,8 +37,7 @@ class TwoStageNet(nn.Module):
         for b_idx in range(bboxs.size(0)):
             # Do nms
             bbox = bboxs[b_idx]
-            keep_idx = torchvision.ops.nms(bbox[:, :4], bbox[:, 4], 0.7)
-            bbox = bbox[keep_idx]
+            bbox = self.nms(bbox)
             xyxy = bbox[:, :4]
             scores.append(bbox[:, 4])
             clses.append(bbox[:, 5])
@@ -50,6 +53,31 @@ class TwoStageNet(nn.Module):
         stage2_reg = self.forward_stage2(roi_feat)
         return hms, whs, offsets, stage2_reg, bxyxys, scores, clses
 
+    def nms(self, bbox):
+        device = bbox.device
+        keep_bboxs = []
+        if self.nms_per_class:
+            cls_unique = bbox[:, 5].unique()
+            for cls in cls_unique:
+                cls_idx = bbox[:, 5] == cls
+                bbox_for_nms = bbox[cls_idx].detach().cpu().numpy()
+                if self.nms_type == 'soft_nms':
+                    keep_bbox = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
+                    keep_bbox = torch.from_numpy(keep_bbox).to(device)
+                else:
+                    keep_idx = torchvision.ops.nms(bbox[:, :4], bbox[:, 4], 0.7)
+                    keep_bbox = bbox_for_nms[keep_idx]
+                keep_bboxs.append(keep_bbox)
+            keep_bboxs = torch.cat(keep_bboxs)
+        else:
+            if self.nms_type == 'soft_nms':
+                keep_bboxs = soft_nms(bbox.detach().cpu().numpy(), Nt=0.7, threshold=0.1, method=2)
+                keep_bboxs = torch.from_numpy(keep_bboxs).to(device)
+            else:
+                keep_idx = torchvision.ops.nms(bbox[:, :4], bbox[:, 4], 0.7)
+                keep_bboxs = bbox[keep_idx]
+        return keep_bboxs
+
     @staticmethod
     def _gather_feat(feat, ind, mask=None):
         dim = feat.size(2)
@@ -61,7 +89,7 @@ class TwoStageNet(nn.Module):
             feat = feat.view(-1, dim)
         return feat
 
-    def _topk(self, scores, k=40):
+    def _topk(self, scores, k=1500):
         batch, cat, height, width = scores.size()
 
         topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), k)

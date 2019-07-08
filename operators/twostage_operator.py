@@ -1,10 +1,9 @@
 import os
 from models.twostage_net import TwoStageNet
-from modules.loss.focalloss import FocalLossHM, FocalLoss
+from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
 import torch
-import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision

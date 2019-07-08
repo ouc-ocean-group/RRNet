@@ -284,7 +284,8 @@ class CenterNetOperator(BaseOperator):
                 pred_bbox1 = torch.cat(multi_scale_bboxes, dim=0)
                 _, idx = torch.sort(pred_bbox1[:, 4], descending=True)
                 pred_bbox1 = pred_bbox1[idx]
-                # pred_bbox1 = self._ext_nms(pred_bbox1)
+                if not self.cfg.Val.auto_test:
+                    pred_bbox1 = self._ext_nms(pred_bbox1)
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox1)

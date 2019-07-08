@@ -30,6 +30,7 @@ if __name__ == "__main__":
     """
 
     print("Start generate Txt file ...")
+    Config.Val.auto_test = False
     dis_operator = DistributedWrapper(Config, CenterNetOperator)
     dis_operator.eval()
 

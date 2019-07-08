@@ -240,6 +240,7 @@ class CenterNetOperator(BaseOperator):
         with open(file_path, 'w') as f:
             for i in range(pred_bbox.size()[0]):
                 bbox = pred_bbox[i]
+                bbox[:4] = torch.round(bbox[:4])
                 line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
                     int(bbox[0]), int(bbox[1]), int(bbox[2])-int(bbox[0]), int(bbox[3])-int(bbox[1]),
                     float(bbox[4]), int(bbox[5])

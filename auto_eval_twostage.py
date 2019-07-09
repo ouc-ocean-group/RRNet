@@ -15,7 +15,7 @@ if __name__ == "__main__":
     for m in model:
         Config.Val.model_path = os.path.join('./log/{}'.format(Config.log_prefix), m)
         print("Start generate Txt file ...")
-        dis_operator = DistributedWrapper(Config, CenterNetOperator)
+        dis_operator = DistributedWrapper(Config, TwoStageOperator)
         dis_operator.eval()
 
         print('Start Eval ...')

@@ -230,8 +230,11 @@ def evaluate_results(pred_dir, target_dir, thresholds=torch.arange(0.5, 1.0, 0.0
         pred = pd.read_csv(os.path.join(pred_dir, "{}.txt".format(name)), header=None, float_precision='high')
         target = pd.read_csv(os.path.join(target_dir, "{}.txt".format(name)), header=None, float_precision='high')
         pred = np.array(pred)
-        target = np.array(target)
+        pred[:, 2:4] += pred[:, 0:2]
+        pred[:, :4] = pred[:, :4].astype(np.int).astype(np.float)
+        pred[:, 2:4] -= pred[:, 0:2]
         pred = torch.from_numpy(pred).float()[:max_det_num]
+        target = np.array(target)
         target = torch.from_numpy(target).float()[:max_det_num]
 
         cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count = \
@@ -273,12 +276,19 @@ def auto_evaluate_results(pred_dir, target_dir, ctnet_min_threshold, softnms_min
         target = pd.read_csv(os.path.join(target_dir, "{}.txt".format(name)), header=None, float_precision='high')
         pred = np.array(pred)
         target = np.array(target)
+
         # fist filter
         pred = torch.from_numpy(pred[pred[:, 4] > ctnet_min_threshold]).float()
         # second filter
+        _, idx = torch.sort(pred[:, 4], descending=True)
+        pred = pred[idx]
         pred = _ext_nms(pred, softnms_min_threshold)
-
-        pred = torch.from_numpy(pred).float()[:max_det_num]
+        pred[:, 2:4] += pred[:, 0:2]
+        pred[:, :4] = pred[:, :4].astype(np.int).astype(np.float)
+        pred[:, 2:4] -= pred[:, 0:2]
+        pred = torch.from_numpy(pred).float()
+        _, idx = torch.sort(pred[:, 4], descending=True)
+        pred = pred[idx][:max_det_num]
         target = torch.from_numpy(target).float()[:max_det_num]
 
         cls_tp_flags, cls_tp_confs, cls_target_count, cls_in_img_count = \

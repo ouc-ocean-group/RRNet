@@ -245,8 +245,8 @@ class TwoStageOperator(BaseOperator):
         with open(file_path, 'w') as f:
             for i in range(pred_bbox.size()[0]):
                 bbox = pred_bbox[i]
-                line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
-                    int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]),
+                line = '%f,%f,%f,%f,%.4f,%d,-1,-1\n' % (
+                    float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]),
                     float(bbox[4]), int(bbox[5])
                 )
                 f.write(line)
@@ -268,6 +268,8 @@ class TwoStageOperator(BaseOperator):
                     img = F.interpolate(img, scale_factor=scale, mode='bilinear', align_corners=True)
                     outs = self.model(img)
                     _, pred_bbox = self.generate_bbox(outs)
+                    if not self.cfg.Val.auto_test:
+                        pred_bbox = pred_bbox[pred_bbox[:, 4]>0.01]
                     pred_bbox = pred_bbox.cpu()
                     pred_bbox[:, :4] = pred_bbox[:, :4] / scale
                     multi_scale_bboxes.append(pred_bbox)
@@ -280,9 +282,6 @@ class TwoStageOperator(BaseOperator):
 
                 _, idx = torch.sort(pred_bbox[:, 4], descending=True)
                 pred_bbox = pred_bbox[idx]
-                if not self.cfg.Val.auto_test:
-                    pred_bbox = pred_bbox[:500]
-
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox)
 

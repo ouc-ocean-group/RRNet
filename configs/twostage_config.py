@@ -55,7 +55,7 @@ Config.Train.checkpoint_interval = 5000
 
 # Validation Config =========================================
 Config.Val = edict()
-Config.Val.model_path = './log/{}/ckp-99999.pth'.format(Config.log_prefix)
+Config.Val.model_path = './log/{}/ckp-89999.pth'.format(Config.log_prefix)
 Config.Val.is_eval = True
 Config.Val.auto_test = True
 # Dataloader params.
@@ -80,7 +80,7 @@ Config.Model = edict()
 Config.Model.backbone = 'hourglass'
 Config.Model.num_stacks = 2
 Config.Model.nms_type_for_stage1 = 'nms'  # or 'soft_nms'
-Config.Model.nms_per_class_for_stage1 = False
+Config.Model.nms_per_class_for_stage1 = True
 
 # Distributed Config =========================================
 Config.Distributed = edict()

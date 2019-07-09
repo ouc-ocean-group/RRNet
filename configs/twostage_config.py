@@ -38,7 +38,7 @@ Config.Train.std = (0.229, 0.224, 0.225)
 Config.Train.scale_factor = 4
 Config.Train.with_road = True
 Config.Train.transforms = Compose([
-    MultiScale(scale=(1, 1.15, 1.25, 1.35, 1.5)),
+    MultiScale(scale=(1, 1.1, 1.2, 1.3, 1.4, 1.5)),
     ToTensor(),
     MaskIgnore(Config.Train.mean),
     FillDuck(),

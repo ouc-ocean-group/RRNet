@@ -14,6 +14,7 @@ from utils.vis.logger import Logger
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 from ext.nms.nms_wrapper import soft_nms
+from utils.warmup_lr import WarmupMultiStepLR
 
 
 class TwoStageOperator(BaseOperator):
@@ -23,8 +24,8 @@ class TwoStageOperator(BaseOperator):
         model = TwoStageNet(cfg).cuda(cfg.Distributed.gpu_id)
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
-        self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
-
+        self.lr_sch = WarmupMultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
+        # self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
         self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='twostagenet')
 
         super(TwoStageOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)

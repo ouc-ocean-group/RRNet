@@ -3,9 +3,9 @@ from operators.distributed_wrapper import DistributedWrapper
 
 from utils.metrics.metrics import auto_evaluate_results
 # ==== import your configuration here ===
-from configs.centernet_config import Config
+from configs.twostage_config import Config
 # ==== import your model operator here ===
-from operators.centernet_operator import CenterNetOperator
+from operators.twostage_operator import TwoStageOperator
 
 if __name__ == "__main__":
     model = ['ckp-59999.pth',

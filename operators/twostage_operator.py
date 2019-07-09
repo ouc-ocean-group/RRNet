@@ -83,7 +83,6 @@ class TwoStageOperator(BaseOperator):
             s2_reg_loss += giou_loss(bbox[pos_idx, :],
                                      s2_reg[batch_flag][pos_idx],
                                      gt_anno[max_idx[pos_idx], :4], self.cfg.Train.scale_factor) * pos_factor / bs
-            s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) * pos_factor / bs
         return hm_loss, wh_loss, off_loss, s2_reg_loss
 
     @staticmethod
@@ -181,7 +180,7 @@ class TwoStageOperator(BaseOperator):
                     s2_pred_bbox = self._ext_nms(s2_pred_bbox)
                     #
                     s1_pred_on_img = visualize(img.copy(), s1_pred_bbox, xywh=True, with_score=True)
-                    s2_pred_on_img = visualize(img.copy(), s2_pred_bbox, xywh=False, with_score=True)
+                    s2_pred_on_img = visualize(img.copy(), s2_pred_bbox, xywh=True, with_score=True)
                     gt_img = visualize(img.copy(), annos[0, :, :6], xywh=False)
 
                     s1_pred_on_img = torch.from_numpy(s1_pred_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.

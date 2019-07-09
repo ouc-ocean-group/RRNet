@@ -278,7 +278,8 @@ class TwoStageOperator(BaseOperator):
                 pred_bbox = pred_bbox[idx]
                 if not self.cfg.Val.auto_test:
                     pred_bbox = self._ext_nms(pred_bbox)
-
+                _, idx = torch.sort(pred_bbox[:, 4], descending=True)
+                pred_bbox = pred_bbox[idx]
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox)
 

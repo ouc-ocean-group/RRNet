@@ -16,6 +16,7 @@ from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 from ext.nms.nms_wrapper import soft_nms
 from utils.warmup_lr import WarmupMultiStepLR
+from modules.loss.functional import giou_loss
 
 
 class TwoStageOperator(BaseOperator):
@@ -79,7 +80,9 @@ class TwoStageOperator(BaseOperator):
                 pos_factor = 0
             else:
                 pos_factor = 1
-            gt_reg = self.generate_bbox_target(bbox[pos_idx, :]*self.cfg.Train.scale_factor, gt_anno[max_idx[pos_idx], :4])
+            s2_reg_loss += giou_loss(bbox[pos_idx, :],
+                                     s2_reg[batch_flag][pos_idx],
+                                     gt_anno[max_idx[pos_idx], :4], self.cfg.Train.scale_factor) * pos_factor / bs
             s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) * pos_factor / bs
         return hm_loss, wh_loss, off_loss, s2_reg_loss
 

@@ -214,8 +214,6 @@ class TwoStageOperator(BaseOperator):
         out_x = out_ctr_x - out_w / 2.
         out_y = out_ctr_y - out_h / 2.
         s2_bboxes = torch.stack((out_x, out_y, out_w, out_h, score, clses.float()+1), dim=1)
-        s1_bboxes = s1_bboxes[score > 0.01]
-        s2_bboxes = s2_bboxes[score > 0.01]
         return s1_bboxes, s2_bboxes
 
     @staticmethod
@@ -238,6 +236,7 @@ class TwoStageOperator(BaseOperator):
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
             keep_bboxs = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
+        keep_bboxs[:, 2:4] -= keep_bboxs[:, 0:2]
         return torch.from_numpy(keep_bboxs)
 
     @staticmethod
@@ -247,7 +246,7 @@ class TwoStageOperator(BaseOperator):
             for i in range(pred_bbox.size()[0]):
                 bbox = pred_bbox[i]
                 line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
-                    int(bbox[0]), int(bbox[1]), int(bbox[2])-int(bbox[0]), int(bbox[3])-int(bbox[1]),
+                    int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3]),
                     float(bbox[4]), int(bbox[5])
                 )
                 f.write(line)
@@ -278,6 +277,11 @@ class TwoStageOperator(BaseOperator):
                 pred_bbox = pred_bbox[idx]
                 if not self.cfg.Val.auto_test:
                     pred_bbox = self._ext_nms(pred_bbox)
+
+                _, idx = torch.sort(pred_bbox[:, 4], descending=True)
+                pred_bbox = pred_bbox[idx]
+                if not self.cfg.Val.auto_test:
+                    pred_bbox = pred_bbox[:500]
 
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')
                 self.save_result(file_path, pred_bbox)

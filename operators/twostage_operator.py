@@ -4,6 +4,7 @@ from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision
@@ -22,6 +23,8 @@ class TwoStageOperator(BaseOperator):
         self.cfg = cfg
 
         model = TwoStageNet(cfg).cuda(cfg.Distributed.gpu_id)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = WarmupMultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)

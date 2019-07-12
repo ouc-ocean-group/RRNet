@@ -2,7 +2,7 @@
 
 *Geo, Yu Zhang, Qingxuan LV, Shuo Wei, andd Xiaorui Wang*
 
-This repo is created for ICCV Drones Detection 2019. We proposed RRNet, which is a anchor-free detector with a re-regression module.
+This repo is created for ICCV Drones Detection 2019. We proposed RRNet, which is an anchor-free detector with a re-regression module.
 
 ## Architecture
 

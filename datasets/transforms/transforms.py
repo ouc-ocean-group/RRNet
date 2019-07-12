@@ -171,7 +171,7 @@ class ToTwoStageHeatmap(object):
 
 
 class FillDuck(object):
-    def __init__(self, cls_list=(1,), factor=0.00005):
+    def __init__(self, cls_list=(1, 2, 3, 7, 8, 10), factor=0.00005):
         self.cls_list = torch.tensor(cls_list).unsqueeze(0)
         self.factor = factor
 

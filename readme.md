@@ -1,19 +1,26 @@
-# ICCV Drones Detection 2019
+# RRNet - Re Regression Net for Object Detection in Drones Image
 
-This repo is created for ICCV Drones Detection 2019.
+*Geo, Yu Zhang, Qingxuan LV, Shuo Wei, andd Xiaorui Wang*
+
+This repo is created for ICCV Drones Detection 2019. We proposed RRNet, which is a anchor-free detector with a re-regression module.
+
+- Architecture:
 
 ## Environment
 
 - PyTorch 1.1.0
 - python3+
 
-## Repo Structure
-- `backbones` for backbone networks.
-- `configs` for config scripts.
-- `datasets` for dataset scripts
-- `detectors` for detector networks.
-- `ext` for some extra module such as NMS etc.
-- `models` for detection modelds consist of the backbone and some modules.
-- `modules` for other useful modules.
-- `utils` for some useful tools code.
+## Setup
 
+```bash
+cd ext/nms && make && cd ..
+
+# Prepare Drones dataset in 'data' folder.
+
+# For Training RRNet
+python3 scripts/RRNet/train.py
+
+# For evaluation
+python3 scripts/RRNet/eval.py
+```

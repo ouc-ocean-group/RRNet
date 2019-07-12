@@ -8,9 +8,9 @@ from detectors.fasterrcnn_detector import FasterRCNNDetector
 from ext.nms.nms_wrapper import soft_nms
 
 
-class TwoStageNet(nn.Module):
+class RRNet(nn.Module):
     def __init__(self, cfg):
-        super(TwoStageNet, self).__init__()
+        super(RRNet, self).__init__()
         self.num_stacks = cfg.Model.num_stacks
         self.num_classes = cfg.num_classes
         self.nms_type = cfg.Model.nms_type_for_stage1

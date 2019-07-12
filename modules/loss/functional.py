@@ -106,3 +106,55 @@ def kl_loss(ori_feats, projected_feats, hms, whs, inds, factor=0.1):
     loss = 0.5 * (small_alpha - large_alpha) + (large_alpha.exp() + F.smooth_l1_loss(small_feats, large_feats, reduction='none')) / (2 * small_alpha.exp())
     loss = loss.mean()
     return loss
+
+
+def giou_loss(bbox, reg, gt, scale_factor):
+    bbox[:, :4] = bbox[:, :4] * scale_factor
+    s1_xywh = bbox[:, :4]
+    s1_xywh[:, 2:4] -= s1_xywh[:, 0:2]
+
+    s2_xywh = s1_xywh.detach()
+    s2_xywh[:, 2:4] += 1
+    out_ctr_x = reg[:, 0] * s2_xywh[:, 2] + s2_xywh[:, 0] + s2_xywh[:, 2] / 2
+    out_ctr_y = reg[:, 1] * s2_xywh[:, 3] + s2_xywh[:, 1] + s2_xywh[:, 3] / 2
+    out_w = reg[:, 2].exp() * s2_xywh[:, 2]
+    out_h = reg[:, 3].exp() * s2_xywh[:, 3]
+    out_x1 = out_ctr_x - out_w / 2.
+    out_y1 = out_ctr_y - out_h / 2.
+    out_x2 = out_ctr_x + out_w / 2.
+    out_y2 = out_ctr_y + out_h / 2.
+
+    s2_bboxes = torch.stack((out_x1, out_y1, out_x2, out_y2), dim=1)
+
+    return _giou_loss(s2_bboxes, gt)
+
+
+def _giou_loss(output, target):
+    x1, y1, x2, y2 = output[:, 0], output[:, 1], output[:, 2], output[:, 3]
+    x1g, y1g, x2g, y2g = target[:, 0], target[:, 1], target[:, 2], target[:, 3]
+
+    x2 = torch.max(x1, x2)
+    y2 = torch.max(y1, y2)
+
+    xkis1 = torch.max(x1, x1g)
+    ykis1 = torch.max(y1, y1g)
+    xkis2 = torch.min(x2, x2g)
+    ykis2 = torch.min(y2, y2g)
+
+    xc1 = torch.min(x1, x1g)
+    yc1 = torch.min(y1, y1g)
+    xc2 = torch.max(x2, x2g)
+    yc2 = torch.max(y2, y2g)
+
+    intsctk = torch.zeros(x1.size(), device=output.device)
+    mask = (ykis2 > ykis1) * (xkis2 > xkis1)
+    intsctk[mask] = (xkis2[mask] - xkis1[mask]) * (ykis2[mask] - ykis1[mask])
+    unionk = (x2 - x1) * (y2 - y1) + (x2g - x1g) * (y2g - y1g) - intsctk + 1e-7
+    iouk = intsctk / unionk
+
+    area_c = (xc2 - xc1) * (yc2 - yc1) + 1e-7
+    miouk = iouk - ((area_c - unionk) / area_c)
+    # iouk = (1 - iouk).mean(0)
+    miouk = (1 - miouk).mean(0)
+
+    return miouk

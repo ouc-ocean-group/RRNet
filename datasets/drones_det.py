@@ -92,30 +92,3 @@ class DronesDET(Dataset):
         imgs = torch.cat(imgs)
         hms = torch.cat(hms)
         return imgs, annos, hms, whs, inds, offsets, reg_masks, names
-
-    @staticmethod
-    def collate_fn_twostage(batch):
-        max_n = 0
-        for i, batch_data in enumerate(batch):
-            max_n = max(max_n, batch_data[1].size(0))
-        imgs, hms, names = [], [], []
-        batchsize = len(batch)
-        annos, whs, offsets, inds, reg_masks = \
-            torch.zeros(batchsize, max_n, 8), \
-            torch.zeros(batchsize, max_n, 2), \
-            torch.zeros(batchsize, max_n, 2), \
-            torch.zeros(batchsize, max_n, 1), \
-            torch.zeros(batchsize, max_n, 1)
-
-        for i, batch_data in enumerate(batch):
-            imgs.append(batch_data[0].unsqueeze(0))
-            annos[i, :batch_data[1].size(0), :] = batch_data[1][:, :8]
-            hms.append(batch_data[2].unsqueeze(0))
-            whs[i, :batch_data[3].size(0), :] = batch_data[3]
-            inds[i, :batch_data[4].size(0), :] = batch_data[4]
-            offsets[i, :batch_data[5].size(0), :] = batch_data[5]
-            reg_masks[i, :batch_data[6].size(0), :] = batch_data[6]
-            names.append(batch_data[7])
-        imgs = torch.cat(imgs)
-        hms = torch.cat(hms)
-        return imgs, annos, hms, whs, inds, offsets, reg_masks, names

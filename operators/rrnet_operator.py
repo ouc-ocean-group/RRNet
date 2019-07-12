@@ -1,9 +1,10 @@
 import os
-from models.twostage_net import TwoStageNet
+from models.rrnet import RRNet
 from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
 import torch
+import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torchvision
@@ -14,20 +15,24 @@ from utils.vis.logger import Logger
 from datasets.transforms.functional import denormalize
 from utils.vis.annotations import visualize
 from ext.nms.nms_wrapper import soft_nms
+from utils.warmup_lr import WarmupMultiStepLR
+from modules.loss.functional import giou_loss
 
 
-class TwoStageOperator(BaseOperator):
+class RRNetOperator(BaseOperator):
     def __init__(self, cfg):
         self.cfg = cfg
 
-        model = TwoStageNet(cfg).cuda(cfg.Distributed.gpu_id)
+        model = RRNet(cfg).cuda(cfg.Distributed.gpu_id)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
-        self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
+        self.lr_sch = WarmupMultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
+        # self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
+        self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='rrnet')
 
-        self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='twostagenet')
-
-        super(TwoStageOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
+        super(RRNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
         # TODO: change it to our class
         self.hm_focal_loss = FocalLossHM()
@@ -75,8 +80,9 @@ class TwoStageOperator(BaseOperator):
                 pos_factor = 0
             else:
                 pos_factor = 1
-            gt_reg = self.generate_bbox_target(bbox[pos_idx, :]*self.cfg.Train.scale_factor, gt_anno[max_idx[pos_idx], :4])
-            s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) * pos_factor / bs
+            s2_reg_loss += giou_loss(bbox[pos_idx, :],
+                                     s2_reg[batch_flag][pos_idx],
+                                     gt_anno[max_idx[pos_idx], :4], self.cfg.Train.scale_factor) * pos_factor / bs
         return hm_loss, wh_loss, off_loss, s2_reg_loss
 
     @staticmethod
@@ -174,7 +180,7 @@ class TwoStageOperator(BaseOperator):
                     s2_pred_bbox = self._ext_nms(s2_pred_bbox)
                     #
                     s1_pred_on_img = visualize(img.copy(), s1_pred_bbox, xywh=True, with_score=True)
-                    s2_pred_on_img = visualize(img.copy(), s2_pred_bbox, xywh=False, with_score=True)
+                    s2_pred_on_img = visualize(img.copy(), s2_pred_bbox, xywh=True, with_score=True)
                     gt_img = visualize(img.copy(), annos[0, :, :6], xywh=False)
 
                     s1_pred_on_img = torch.from_numpy(s1_pred_on_img).permute(2, 0, 1).unsqueeze(0).float() / 255.
@@ -214,8 +220,6 @@ class TwoStageOperator(BaseOperator):
         out_x = out_ctr_x - out_w / 2.
         out_y = out_ctr_y - out_h / 2.
         s2_bboxes = torch.stack((out_x, out_y, out_w, out_h, score, clses.float()+1), dim=1)
-        s1_bboxes = s1_bboxes[score > 0.01]
-        s2_bboxes = s2_bboxes[score > 0.01]
         return s1_bboxes, s2_bboxes
 
     @staticmethod
@@ -238,6 +242,7 @@ class TwoStageOperator(BaseOperator):
             bbox_for_nms[:, 2] = bbox_for_nms[:, 0] + bbox_for_nms[:, 2]
             bbox_for_nms[:, 3] = bbox_for_nms[:, 1] + bbox_for_nms[:, 3]
             keep_bboxs = soft_nms(bbox_for_nms, Nt=0.7, threshold=0.1, method=2)
+        keep_bboxs[:, 2:4] -= keep_bboxs[:, 0:2]
         return torch.from_numpy(keep_bboxs)
 
     @staticmethod
@@ -246,8 +251,8 @@ class TwoStageOperator(BaseOperator):
         with open(file_path, 'w') as f:
             for i in range(pred_bbox.size()[0]):
                 bbox = pred_bbox[i]
-                line = '%d,%d,%d,%d,%.4f,%d,-1,-1\n' % (
-                    int(bbox[0]), int(bbox[1]), int(bbox[2])-int(bbox[0]), int(bbox[3])-int(bbox[1]),
+                line = '%f,%f,%f,%f,%.4f,%d,-1,-1\n' % (
+                    float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]),
                     float(bbox[4]), int(bbox[5])
                 )
                 f.write(line)
@@ -269,6 +274,8 @@ class TwoStageOperator(BaseOperator):
                     img = F.interpolate(img, scale_factor=scale, mode='bilinear', align_corners=True)
                     outs = self.model(img)
                     _, pred_bbox = self.generate_bbox(outs)
+                    if not self.cfg.Val.auto_test:
+                        pred_bbox = pred_bbox[pred_bbox[:, 4]>0.01]
                     pred_bbox = pred_bbox.cpu()
                     pred_bbox[:, :4] = pred_bbox[:, :4] / scale
                     multi_scale_bboxes.append(pred_bbox)
@@ -278,6 +285,7 @@ class TwoStageOperator(BaseOperator):
                 pred_bbox = pred_bbox[idx]
                 if not self.cfg.Val.auto_test:
                     pred_bbox = self._ext_nms(pred_bbox)
+
                 _, idx = torch.sort(pred_bbox[:, 4], descending=True)
                 pred_bbox = pred_bbox[idx]
                 file_path = os.path.join(self.cfg.Val.result_dir, names[0] + '.txt')

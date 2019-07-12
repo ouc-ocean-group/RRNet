@@ -1,5 +1,5 @@
 import os
-from models.twostage_net import TwoStageNet
+from models.rrnet import RRNet
 from modules.loss.focalloss import FocalLossHM
 import numpy as np
 from modules.loss.regl1loss import RegL1Loss
@@ -19,20 +19,20 @@ from utils.warmup_lr import WarmupMultiStepLR
 from modules.loss.functional import giou_loss
 
 
-class TwoStageOperator(BaseOperator):
+class RRNetOperator(BaseOperator):
     def __init__(self, cfg):
         self.cfg = cfg
 
-        model = TwoStageNet(cfg).cuda(cfg.Distributed.gpu_id)
+        model = RRNet(cfg).cuda(cfg.Distributed.gpu_id)
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
         self.lr_sch = WarmupMultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
         # self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
-        self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='twostagenet')
+        self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='rrnet')
 
-        super(TwoStageOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
+        super(RRNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
 
         # TODO: change it to our class
         self.hm_focal_loss = FocalLossHM()

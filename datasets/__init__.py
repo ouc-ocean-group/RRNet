@@ -15,8 +15,8 @@ def make_dataloader(cfg, collate_fn=None):
 
     if collate_fn is 'ctnet':
         collate_fn = train_dataset.collate_fn_ctnet
-    elif collate_fn is 'twostagenet':
-        collate_fn = train_dataset.collate_fn_twostage
+    elif collate_fn is 'rrnet':
+        collate_fn = train_dataset.collate_fn_ctnet()
     else:
         collate_fn = train_dataset.collate_fn
 

@@ -28,8 +28,7 @@ class RRNetOperator(BaseOperator):
 
         self.optimizer = optim.Adam(model.parameters(), lr=cfg.Train.lr)
 
-        self.lr_sch = WarmupMultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
-        # self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
+        self.lr_sch = optim.lr_scheduler.MultiStepLR(self.optimizer, milestones=cfg.Train.lr_milestones, gamma=0.1)
         self.training_loader, self.validation_loader = make_dataloader(cfg, collate_fn='rrnet')
 
         super(RRNetOperator, self).__init__(cfg=self.cfg, model=model, lr_sch=self.lr_sch)
@@ -80,9 +79,8 @@ class RRNetOperator(BaseOperator):
                 pos_factor = 0
             else:
                 pos_factor = 1
-            s2_reg_loss += giou_loss(bbox[pos_idx, :],
-                                     s2_reg[batch_flag][pos_idx],
-                                     gt_anno[max_idx[pos_idx], :4], self.cfg.Train.scale_factor) * pos_factor / bs
+            gt_reg = self.generate_bbox_target(bbox[pos_idx, :]*self.cfg.Train.scale_factor, gt_anno[max_idx[pos_idx], :4])
+            s2_reg_loss += F.smooth_l1_loss(s2_reg[batch_flag][pos_idx], gt_reg) * pos_factor / bs
         return hm_loss, wh_loss, off_loss, s2_reg_loss
 
     @staticmethod

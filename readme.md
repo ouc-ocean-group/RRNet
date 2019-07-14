@@ -26,9 +26,9 @@ cd ext/nms && make && cd ..
 
 # For Training RRNet
 cp scripts/RRNet/train.py ./
-python3 scripts/RRNet/train.py
+python3 train.py
 
 # For evaluation
 cp scripts/RRNet/eval.py ./
-python3 scripts/RRNet/eval.py
+python3 eval.py
 ```

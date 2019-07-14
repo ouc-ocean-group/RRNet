@@ -25,8 +25,10 @@ cd ext/nms && make && cd ..
 # Prepare Drones dataset in 'data' folder.
 
 # For Training RRNet
+cp scripts/RRNet/train.py ./
 python3 scripts/RRNet/train.py
 
 # For evaluation
+cp scripts/RRNet/eval.py ./
 python3 scripts/RRNet/eval.py
 ```

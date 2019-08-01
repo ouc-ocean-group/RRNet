@@ -5,10 +5,12 @@ class Dataloader(object):
     """
     New dataloader class, which fit the iter num instead of the epoch.
     """
-    def __init__(self, loader, epoch=0):
+    def __init__(self, loader, epoch=0, distributed=False):
         self._loader = loader
         self.epoch = epoch
-        self._loader.sampler.set_epoch(self.epoch)
+        if distributed:
+            self._loader.sampler.set_epoch(self.epoch)
+        self.distributed = distributed
 
         self.loader = iter(self._loader)
 
@@ -27,8 +29,13 @@ class Dataloader(object):
             data = next(self.loader)
         except StopIteration:
             self.epoch += 1
-            self._loader.sampler.set_epoch(self.epoch)
+            if self.distributed:
+                self._loader.sampler.set_epoch(self.epoch)
             self.loader = iter(self._loader)
             data = next(self.loader)
 
         return self.to_device(data, device)
+
+    def __len__(self):
+        return len(self._loader)
+

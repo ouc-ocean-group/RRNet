@@ -4,6 +4,8 @@
 
 This repo is created for ICCV Drones Detection 2019. We proposed RRNet, which is an anchor-free detector with a re-regression module.
 
+🎉 We are the **Runner-Up** to the challenge!
+
 ## Architecture
 
 ![](./assets/arch.png)

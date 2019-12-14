@@ -1,10 +1,10 @@
 # RRNet - Re Regression Net for Object Detection in Drones Image
 
-*Geo, Yu Zhang, Qingxuan LV, Shuo Wei, andd Xiaorui Wang*
+*Changrui Chen, Yu Zhang, Qingxuan LV, Shuo Wei, andd Xiaorui Wang*
 
 This repo is created for ICCV Drones Detection 2019. We proposed RRNet, which is an anchor-free detector with a re-regression module.
 
-🎉 We are the **Runner-Up** to the challenge!
+🎉 We are the **Honorable Mention** to the challenge!
 
 ## Architecture
 

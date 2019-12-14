@@ -1,4 +1,4 @@
-# RRNet - Re Regression Net for Object Detection in Drones Image
+# RRNet: A Hybrid Detector for Object Detection in Drone-captured Images
 
 *Changrui Chen, Yu Zhang, Qingxuan LV, Shuo Wei, andd Xiaorui Wang*
 
